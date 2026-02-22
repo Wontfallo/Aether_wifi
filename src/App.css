@@ -1,0 +1,24 @@
+/* Aether — Global Overrides */
+/* This file handles any base element resets not covered by Tailwind */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Smooth scrolling for overflow areas */
+.overflow-auto {
+  scroll-behavior: smooth;
+}
+
+/* Custom selection color */
+::selection {
+  background: rgba(0, 229, 255, 0.3);
+}
+
+/* Focus ring for keyboard navigation */
+:focus-visible {
+  outline: 2px solid hsl(188 100% 50%);
+  outline-offset: 2px;
+}
