@@ -3,24 +3,66 @@
 #  AETHER WiFi Auditor — One-Command Launcher
 # ═══════════════════════════════════════════════════════
 #
-#  Usage (from Windows):
-#    wsl -d kali-linux -- bash /mnt/c/Users/WontML/dev/Aether_wifi/aether.sh
+#  Usage:
+#    bash ./aether.sh
 #
-#  Or from inside Kali:
-#    bash ~/Aether_wifi/aether.sh
+#  Optional overrides:
+#    AETHER_IFACE=wlan1 bash ./aether.sh
+#    AETHER_RESTORE_MANAGED=0 bash ./aether.sh
 #
 # ═══════════════════════════════════════════════════════
 
-set -e
+set -euo pipefail
 
 IFACE="${AETHER_IFACE:-wlan0}"
-PROJECT_DIR="/mnt/c/Users/WontML/dev/Aether_wifi"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="${AETHER_PROJECT_DIR:-$SCRIPT_DIR}"
+RESTORE_MANAGED="${AETHER_RESTORE_MANAGED:-1}"
+NEEDS_CLEANUP=0
+NETWORKMANAGER_WAS_ACTIVE=0
+WPASUPPLICANT_WAS_ACTIVE=0
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
+
+service_is_active() {
+    local service="$1"
+    command -v systemctl &>/dev/null && systemctl is-active --quiet "$service"
+}
+
+restore_interface_state() {
+    if [ "$RESTORE_MANAGED" != "1" ] || [ "$NEEDS_CLEANUP" -ne 1 ]; then
+        return
+    fi
+
+    echo -e ""
+    echo -e "${YELLOW}[cleanup]${NC} Restoring ${IFACE} to managed mode..."
+
+    sudo ip link set "$IFACE" down &>/dev/null || true
+    sudo iw "$IFACE" set type managed &>/dev/null || true
+    sudo ip link set "$IFACE" up &>/dev/null || true
+
+    if command -v nmcli &>/dev/null; then
+        sudo nmcli device set "$IFACE" managed yes &>/dev/null || true
+    fi
+
+    if command -v systemctl &>/dev/null; then
+        if [ "$NETWORKMANAGER_WAS_ACTIVE" -eq 1 ]; then
+            sudo systemctl restart NetworkManager &>/dev/null || true
+        fi
+
+        if [ "$WPASUPPLICANT_WAS_ACTIVE" -eq 1 ]; then
+            sudo systemctl restart wpa_supplicant &>/dev/null || true
+        fi
+    fi
+
+    echo -e "  ${GREEN}✓${NC} ${IFACE} restored to managed mode"
+}
+
+trap restore_interface_state EXIT INT TERM
 
 echo -e "${CYAN}"
 echo "  ╔══════════════════════════════════════╗"
@@ -40,17 +82,33 @@ if ! command -v cargo &>/dev/null; then
     exit 1
 fi
 
+if service_is_active NetworkManager; then
+    NETWORKMANAGER_WAS_ACTIVE=1
+fi
+
+if service_is_active wpa_supplicant; then
+    WPASUPPLICANT_WAS_ACTIVE=1
+fi
+
 # ── 2. Check WiFi adapter ──
 echo -e "${YELLOW}[1/4]${NC} Checking WiFi adapter (${IFACE})..."
 if ! ip link show "$IFACE" &>/dev/null; then
-    echo -e "${RED}[ERROR] Interface '$IFACE' not found.${NC}"
-    echo "  Available interfaces:"
-    ip link show | grep -E "^[0-9]+" | awk '{print "    " $2}'
-    echo ""
-    echo "  Set a different interface: AETHER_IFACE=wlanX bash aether.sh"
-    exit 1
+    if command -v airmon-ng &>/dev/null && ip link show "${IFACE}mon" &>/dev/null; then
+        echo -e "  Found leftover monitor interface ${IFACE}mon, attempting recovery..."
+        sudo airmon-ng stop "${IFACE}mon" &>/dev/null || true
+    fi
+
+    if ! ip link show "$IFACE" &>/dev/null; then
+        echo -e "${RED}[ERROR] Interface '$IFACE' not found.${NC}"
+        echo "  Available interfaces:"
+        ip link show | grep -E "^[0-9]+" | awk '{print "    " $2}'
+        echo ""
+        echo "  Set a different interface: AETHER_IFACE=wlanX bash ./aether.sh"
+        exit 1
+    fi
 fi
 echo -e "  ${GREEN}✓${NC} Found $IFACE"
+NEEDS_CLEANUP=1
 
 # ── 3. Set monitor mode if needed ──
 echo -e "${YELLOW}[2/4]${NC} Ensuring monitor mode..."
@@ -72,7 +130,9 @@ echo -e "  ${GREEN}✓${NC} Channel 6 (2437 MHz)"
 
 # ── 5. Allow X11 access for root & launch ──
 echo -e "${YELLOW}[4/4]${NC} Launching Aether..."
-xhost +local:root &>/dev/null 2>&1 || true
+if command -v xhost &>/dev/null && [ -n "${DISPLAY:-}" ]; then
+    xhost +local:root &>/dev/null 2>&1 || true
+fi
 
 cd "$PROJECT_DIR"
 

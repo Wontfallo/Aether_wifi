@@ -80,6 +80,8 @@ export interface DeauthResult {
     message: string;
     bssid: string;
     packets_sent: number;
+    packets_total: number;
+    stopped_early: boolean;
 }
 
 /**
@@ -93,15 +95,19 @@ export interface HandshakeResult {
 
 /**
  * Real-time status event for EAPOL capture operations.
- * Received via Tauri event `"eapol-status"`.
+ * Received via Tauri event `"eapol-status"` or `"deauth-status"`.
  */
 export interface CaptureOperationStatus {
-    /** Current phase: "setup" | "deauth" | "capturing" | "complete" | "error" */
+    /** Current phase: "setup" | "deauth" | "capturing" | "complete" | "error" | "stopped" */
     phase: string;
     /** Human-readable status message */
     message: string;
     /** Progress from 0.0 to 1.0 */
     progress: number;
+    /** Number of deauth packets sent (optional, for deauth operations) */
+    packets_sent?: number;
+    /** Total deauth packets to send (optional, for deauth operations) */
+    packets_total?: number;
 }
 
 /**

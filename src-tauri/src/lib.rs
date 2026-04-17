@@ -57,6 +57,8 @@ pub fn run() {
         .manage(audit_commands::EapolCaptureState(std::sync::Mutex::new(
             None,
         )))
+        // Managed state: tracks the active deauth attack
+        .manage(audit_commands::DeauthState(std::sync::Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             // Network interface management
             network_commands::list_interfaces,
@@ -69,10 +71,12 @@ pub fn run() {
             capture_commands::stop_capture,
             capture_commands::capture_status,
             // Offensive audit suite
-            audit_commands::send_deauth,
+            audit_commands::start_deauth,
+            audit_commands::stop_deauth,
             audit_commands::start_eapol_capture,
             audit_commands::stop_eapol_capture,
             audit_commands::one_click_capture,
+            audit_commands::stop_all_attacks,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Aether application");
