@@ -6,7 +6,7 @@ import { useBeaconCapture } from "../hooks/useBeaconCapture";
 export function Hunt() {
     const [targetMac, setTargetMac] = useState("");
     const [channelLock, setChannelLock] = useState("Auto-Scan");
-    const { beaconStream, isCapturing, startCapture, stopCapture } = useBeaconCapture(5000);
+    const { beaconStream, isCapturing, startCapture, stopCapture } = useBeaconCapture();
 
     const handleToggleCapture = () => {
         if (isCapturing) stopCapture();

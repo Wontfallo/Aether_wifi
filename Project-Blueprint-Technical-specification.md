@@ -108,8 +108,62 @@ PHASE 5: Offensive Capabilities (Advanced)
 
 ---
 
-Why this will succeed:
+ "Execute Phase 1." Let's see what it builds.
 
-By offloading the heavy lifting to a compiled Rust binary and handling the UI in a modern web framework, you eliminate 100% of the Python module crashes you just fought. It will be 10x faster than Sparrow, consume fewer resources, and look like a tool built in 2026, not 2012.
+1. The Core Engine (Rust & Systems)
 
-Take this blueprint, drop it into your Antigravity IDE, and tell your agent: "Execute Phase 1." Let's see what it builds.
+
+Since Aether's backend bypasses Python and directly interacts with the Linux network stack and raw packet parsing, the agent needs strong systems programming context.
+
+
+- rust-pro: Essential for writing the high-performance Tauri backend and IPC bridge.
+
+- systems-programming-rust-project: Crucial for interacting with standard Linux APIs (like nl80211 or executing child shell processes) securely.
+
+- wireshark-analysis: This is a secret weapon. To write the pcap packet sniffer, the agent needs to know exactly how 802.11 Beacon frames and EAPOL (WPA handshake) packets are structured. This skill gives it that packet-level context.
+
+- network-engineer: Provides the fundamental knowledge of WiFi channels, frequencies (2.4/5/6GHz), dBm signal strength, and MAC address routing.
+
+2. The Frontend (React & UI/UX)
+
+
+We want this to look like a sleek, modern, 60FPS application, not a clunky 2012 Python script.
+
+
+- react-best-practices: For building out the dashboard, state management, and subscribing to the real-time Tauri events stream without causing memory leaks.
+
+- typescript-expert: To ensure the data types coming from the Rust backend perfectly map to the React frontend (e.g., standardizing the JSON payload for WiFi networks).
+
+- tailwind-patterns: Essential for quickly mocking up the dark-mode, hacker-aesthetic dashboard.
+
+- ui-ux-pro-max: Because we specifically want the smooth, intuitive UX of modern Android WiFi analyzers, this will help the agent architect the layout and overlapping parabolic charts cleanly.
+
+3. The Auto-Config "Magic" (Scripts & OS)
+
+
+To achieve the "No Bullshit" user experience where it handles WSL2 and interface states automatically, the agent needs to write perfect cross-platform glue code.
+
+
+- powershell-windows: Used specifically to write the usbipd attach auto-config script so Windows users don't have to touch a terminal to pass their adapter to the app.
+
+- linux-shell-scripting: Required for writing the fail-safes that bring the network adapter down, switch it to monitor or managed mode via iw, and bring it back up.
+
+4. The Offensive Suite (Security)
+
+
+For the "Hunt" and "Audit" modules (Deauth attacks and Handshake capturing).
+
+
+- ethical-hacking-methodology: Gives the agent the context of why we are capturing these packets and the standard procedures for isolating a target without bringing down a whole network.
+
+- software-architecture: To successfully implement the "Split Privilege Model" (where the UI runs as a normal user but the Rust packet sniffer runs as root).
+
+How to proceed in the IDE:
+
+
+
+2. Paste the Project Blueprint from my previous message.
+
+3. Give it the prompt: "We are building Aether based on this blueprint. Initialize Phase 1: The Tauri + React + Vite + Tailwind scaffolding."
+
+Let it rip. It should immediately generate the foundational workspace!

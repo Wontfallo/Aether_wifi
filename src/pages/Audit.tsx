@@ -1,4 +1,4 @@
-import { ShieldAlert, Zap, Download, Radio, Square, AlertTriangle, CheckCircle2, Loader2, FileDown } from "lucide-react";
+import { ShieldAlert, Zap, Download, Radio, Square, AlertTriangle, CheckCircle2, Loader2, FileDown, Octagon } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -9,7 +9,7 @@ import type {
 } from "../types/capture";
 import { useBeaconCapture } from "../hooks/useBeaconCapture";
 
-type AuditPhase = "idle" | "setup" | "deauth" | "capturing" | "complete" | "error";
+type AuditPhase = "idle" | "setup" | "deauth" | "capturing" | "complete" | "error" | "stopped";
 
 interface CapturedFile {
     path: string;
@@ -21,19 +21,24 @@ export function Audit() {
     const [targetBssid, setTargetBssid] = useState("");
     const [interfaceName, setInterfaceName] = useState("wlan0");
     const [deauthCount, setDeauthCount] = useState(5);
+    const [deauthInterval, setDeauthInterval] = useState(100); // milliseconds between deauth packets
     const [phase, setPhase] = useState<AuditPhase>("idle");
     const [statusMessage, setStatusMessage] = useState("");
     const [progress, setProgress] = useState(0);
     const [capturedFiles, setCapturedFiles] = useState<CapturedFile[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [isEapolCapturing, setIsEapolCapturing] = useState(false);
+    const [isDeauthing, setIsDeauthing] = useState(false);
+    const [packetsSent, setPacketsSent] = useState(0);
+    const [packetsTotal, setPacketsTotal] = useState(0);
 
     // Use beacon capture to populate target list
     const { beacons } = useBeaconCapture();
 
     // Listen for EAPOL status events from the backend
     useEffect(() => {
-        let unlisten: UnlistenFn | null = null;
+        let unlistenEapol: UnlistenFn | null = null;
+        let unlistenDeauth: UnlistenFn | null = null;
 
         listen<CaptureOperationStatus>("eapol-status", (event) => {
             const status = event.payload;
@@ -41,8 +46,16 @@ export function Audit() {
             setStatusMessage(status.message);
             setProgress(status.progress);
 
+            if (status.packets_sent !== undefined) {
+                setPacketsSent(status.packets_sent);
+            }
+            if (status.packets_total !== undefined) {
+                setPacketsTotal(status.packets_total);
+            }
+
             if (status.phase === "complete") {
                 setIsEapolCapturing(false);
+                setIsDeauthing(false);
                 // Extract pcap path from message if present
                 const pathMatch = status.message.match(/Saved to (.+)/);
                 if (pathMatch) {
@@ -57,16 +70,45 @@ export function Audit() {
                 }
             } else if (status.phase === "error") {
                 setIsEapolCapturing(false);
+                setIsDeauthing(false);
+                setError(status.message);
+            } else if (status.phase === "stopped") {
+                setIsEapolCapturing(false);
+                setIsDeauthing(false);
+            }
+        }).then((fn) => {
+            unlistenEapol = fn;
+        });
+
+        // Listen for deauth status events
+        listen<CaptureOperationStatus>("deauth-status", (event) => {
+            const status = event.payload;
+            setPhase(status.phase as AuditPhase);
+            setStatusMessage(status.message);
+            setProgress(status.progress);
+
+            if (status.packets_sent !== undefined) {
+                setPacketsSent(status.packets_sent);
+            }
+            if (status.packets_total !== undefined) {
+                setPacketsTotal(status.packets_total);
+            }
+
+            if (status.phase === "complete" || status.phase === "stopped") {
+                setIsDeauthing(false);
+            } else if (status.phase === "error") {
+                setIsDeauthing(false);
                 setError(status.message);
             }
         }).then((fn) => {
-            unlisten = fn;
+            unlistenDeauth = fn;
         });
 
         return () => {
-            if (unlisten) unlisten();
+            if (unlistenEapol) unlistenEapol();
+            if (unlistenDeauth) unlistenDeauth();
         };
-    }, []); // Removed targetBssid dependency so it doesn't unbind randomly
+    }, [targetBssid]);
 
     // One-click capture handler
     const handleOneClickCapture = useCallback(async () => {
@@ -80,20 +122,25 @@ export function Audit() {
         setStatusMessage("Initiating one-click capture...");
         setProgress(0.1);
         setIsEapolCapturing(true);
+        setIsDeauthing(true);
+        setPacketsSent(0);
+        setPacketsTotal(deauthCount);
 
         try {
             await invoke<HandshakeResult>("one_click_capture", {
                 interfaceName,
                 bssid: targetBssid,
                 deauthCount,
+                deauthIntervalMs: deauthInterval,
             });
         } catch (err: unknown) {
             const msg = typeof err === "string" ? err : JSON.stringify(err);
             setError(msg);
             setPhase("error");
             setIsEapolCapturing(false);
+            setIsDeauthing(false);
         }
-    }, [targetBssid, interfaceName, deauthCount]);
+    }, [targetBssid, interfaceName, deauthCount, deauthInterval]);
 
     // Manual deauth-only handler
     const handleDeauthOnly = useCallback(async () => {
@@ -105,29 +152,33 @@ export function Audit() {
         setError(null);
         setPhase("deauth");
         setStatusMessage("Transmitting deauth frames...");
+        setIsDeauthing(true);
+        setPacketsSent(0);
+        setPacketsTotal(deauthCount);
 
         try {
-            const result = await invoke<DeauthResult>("send_deauth", {
+            await invoke<DeauthResult>("start_deauth", {
                 interfaceName,
                 bssid: targetBssid,
                 count: deauthCount,
+                intervalMs: deauthInterval,
             });
-            setStatusMessage(result.message);
-            setPhase("idle");
         } catch (err: unknown) {
             const msg = typeof err === "string" ? err : JSON.stringify(err);
             setError(msg);
             setPhase("error");
+            setIsDeauthing(false);
         }
-    }, [targetBssid, interfaceName, deauthCount]);
+    }, [targetBssid, interfaceName, deauthCount, deauthInterval]);
 
-    // Stop EAPOL capture
-    const handleStopCapture = useCallback(async () => {
+    // Stop all attacks
+    const handleStopAll = useCallback(async () => {
         try {
-            await invoke<HandshakeResult>("stop_eapol_capture");
+            await invoke<HandshakeResult>("stop_all_attacks");
             setIsEapolCapturing(false);
+            setIsDeauthing(false);
             setPhase("idle");
-            setStatusMessage("Capture stopped.");
+            setStatusMessage("Attack stopped.");
         } catch (err: unknown) {
             const msg = typeof err === "string" ? err : JSON.stringify(err);
             setError(msg);
@@ -147,6 +198,7 @@ export function Audit() {
             case "capturing": return "text-radar-alert";
             case "complete": return "text-radar-green";
             case "error": return "text-destructive";
+            case "stopped": return "text-orange-500";
         }
     };
 
@@ -158,8 +210,11 @@ export function Audit() {
             case "capturing": return <Loader2 className="w-4 h-4 animate-spin" />;
             case "complete": return <CheckCircle2 className="w-4 h-4" />;
             case "error": return <AlertTriangle className="w-4 h-4" />;
+            case "stopped": return <Octagon className="w-4 h-4" />;
         }
     };
+
+    const isAttackActive = isEapolCapturing || isDeauthing;
 
     return (
         <div className="h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -191,10 +246,15 @@ export function Audit() {
                     </div>
                     <div className="w-full h-1 bg-black/40 rounded-full overflow-hidden">
                         <div
-                            className={`h-full rounded-full transition-all duration-500 ${phase === "error" ? "bg-destructive" : phase === "complete" ? "bg-radar-green" : "bg-radar-yellow"}`}
+                            className={`h-full rounded-full transition-all duration-500 ${phase === "error" ? "bg-destructive" : phase === "complete" ? "bg-radar-green" : phase === "stopped" ? "bg-orange-500" : "bg-radar-yellow"}`}
                             style={{ width: `${progress * 100}%` }}
                         />
                     </div>
+                    {packetsTotal > 0 && (
+                        <div className="mt-2 font-mono text-[10px] text-muted-foreground">
+                            Packets: {packetsSent} / {packetsTotal}
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -229,11 +289,25 @@ export function Audit() {
                         <input
                             type="number"
                             min={1}
-                            max={50}
+                            max={100}
                             value={deauthCount}
                             onChange={(e) => setDeauthCount(parseInt(e.target.value) || 5)}
                             className="w-full bg-black/40 border border-border/60 rounded px-3 py-2 font-mono text-sm text-foreground focus:border-radar-yellow focus:outline-none transition-colors"
                         />
+                    </div>
+
+                    <div>
+                        <label className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1 block">Interval (ms)</label>
+                        <input
+                            type="number"
+                            min={10}
+                            max={10000}
+                            step={10}
+                            value={deauthInterval}
+                            onChange={(e) => setDeauthInterval(parseInt(e.target.value) || 100)}
+                            className="w-full bg-black/40 border border-border/60 rounded px-3 py-2 font-mono text-sm text-foreground focus:border-radar-yellow focus:outline-none transition-colors"
+                        />
+                        <p className="text-[9px] text-muted-foreground mt-1">Time between each deauth packet</p>
                     </div>
 
                     {/* Discovered Targets (from beacon capture) */}
@@ -256,9 +330,20 @@ export function Audit() {
 
                     {/* Action Buttons */}
                     <div className="mt-auto space-y-3 pt-4">
+                        {/* STOP ATTACK BUTTON - Prominent when attack is active */}
+                        {isAttackActive && (
+                            <button
+                                onClick={handleStopAll}
+                                className="w-full bg-destructive border-2 border-destructive text-white hover:bg-destructive/80 transition-all rounded py-3 font-mono text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(239,68,68,0.4)] animate-pulse"
+                            >
+                                <Octagon className="w-5 h-5" />
+                                STOP ATTACK
+                            </button>
+                        )}
+
                         <button
                             onClick={handleOneClickCapture}
-                            disabled={isEapolCapturing || !targetBssid}
+                            disabled={isAttackActive || !targetBssid}
                             className="w-full bg-radar-yellow/10 border border-radar-yellow/50 text-radar-yellow hover:bg-radar-yellow hover:text-black transition-all rounded py-3 font-mono text-xs font-bold uppercase tracking-widest flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(255,234,0,0.1)] hover:shadow-[0_0_20px_rgba(255,234,0,0.4)] disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-radar-yellow/10 disabled:hover:text-radar-yellow"
                         >
                             <Zap className="w-4 h-4" />
@@ -268,15 +353,15 @@ export function Audit() {
                         <div className="grid grid-cols-2 gap-2">
                             <button
                                 onClick={handleDeauthOnly}
-                                disabled={isEapolCapturing || !targetBssid}
+                                disabled={isAttackActive || !targetBssid}
                                 className="bg-destructive/10 border border-destructive/40 text-destructive/80 hover:bg-destructive hover:text-white transition-all rounded py-2 font-mono text-[10px] tracking-widest uppercase disabled:opacity-30 disabled:cursor-not-allowed"
                             >
                                 Deauth Only
                             </button>
                             <button
-                                onClick={handleStopCapture}
-                                disabled={!isEapolCapturing}
-                                className="bg-muted/30 border border-border/40 text-muted-foreground hover:bg-muted hover:text-foreground transition-all rounded py-2 font-mono text-[10px] tracking-widest uppercase disabled:opacity-30 disabled:cursor-not-allowed"
+                                onClick={handleStopAll}
+                                disabled={!isAttackActive}
+                                className="bg-orange-500/10 border border-orange-500/40 text-orange-500 hover:bg-orange-500 hover:text-white transition-all rounded py-2 font-mono text-[10px] tracking-widest uppercase disabled:opacity-30 disabled:cursor-not-allowed"
                             >
                                 <Square className="w-3 h-3 inline mr-1" />
                                 Stop

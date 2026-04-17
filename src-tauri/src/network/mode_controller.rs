@@ -99,8 +99,10 @@ impl ModeController {
 
         #[cfg(target_os = "linux")]
         {
-            // Step 0: Kill interfering processes (NetworkManager, wpa_supplicant)
-            Self::kill_interfering_processes(interface_name);
+            if *target == InterfaceMode::Monitor {
+                // Step 0: Kill interfering processes (NetworkManager, wpa_supplicant)
+                Self::kill_interfering_processes(interface_name);
+            }
 
             // Step 1: Bring the interface down
             info!("Bringing {} down...", interface_name);
@@ -114,6 +116,10 @@ impl ModeController {
             // Step 3: Bring the interface back up
             info!("Bringing {} up...", interface_name);
             Self::run_privileged("ip", &["link", "set", interface_name, "up"])?;
+
+            if *target == InterfaceMode::Managed {
+                Self::restore_managed_services(interface_name);
+            }
 
             info!("Mode change complete: {} → {}", interface_name, target);
             Ok(())
@@ -151,6 +157,32 @@ impl ModeController {
             "nmcli",
             &["device", "set", interface_name, "managed", "no"],
         );
+    }
+
+    /// Restore the services commonly disabled for monitor mode workflows.
+    ///
+    /// This is the cleanup counterpart to `kill_interfering_processes`.
+    /// Non-fatal — cleanup should not mask a successful mode switch.
+    #[cfg(target_os = "linux")]
+    fn restore_managed_services(interface_name: &str) {
+        info!("Restoring managed networking services for {}...", interface_name);
+
+        if let Err(e) = Self::run_privileged(
+            "nmcli",
+            &["device", "set", interface_name, "managed", "yes"],
+        ) {
+            debug!(
+                "Could not hand {} back to NetworkManager via nmcli: {}",
+                interface_name, e
+            );
+        }
+
+        for service in &["wpa_supplicant", "NetworkManager"] {
+            match Self::run_privileged("systemctl", &["restart", service]) {
+                Ok(_) => info!("Restarted {}", service),
+                Err(e) => warn!("Could not restart {}: {}", service, e),
+            }
+        }
     }
 
     /// Execute a command with sudo/pkexec elevation.
