@@ -179,3 +179,69 @@ pub struct CaptureStatus {
     /// Human-readable message.
     pub message: String,
 }
+
+// ─────────────────────────────────────────────────
+// Sniffer Frame Types
+// ─────────────────────────────────────────────────
+
+/// A parsed 802.11 Probe Request frame.
+///
+/// Emitted via Tauri event `"probe-request"` when the sniffer detects
+/// a client device actively scanning for networks.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProbeRequest {
+    /// Source MAC of the probing device.
+    pub source_mac: String,
+
+    /// SSID being probed for. Empty string = wildcard/broadcast probe.
+    pub ssid: String,
+
+    /// Signal strength in dBm.
+    pub rssi: i8,
+
+    /// Channel the probe was observed on.
+    pub channel: u8,
+
+    /// Frequency in MHz.
+    pub frequency_mhz: u16,
+
+    /// Vendor name from OUI lookup.
+    pub vendor: Option<String>,
+
+    /// Unix timestamp (milliseconds).
+    pub timestamp_ms: u64,
+}
+
+/// A detected deauthentication or disassociation event.
+///
+/// Emitted via Tauri event `"deauth-detected"` when the sniffer sees
+/// deauth/disassoc frames on the air — useful for detecting attacks.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeauthEvent {
+    /// MAC of the device that sent the deauth/disassoc.
+    pub source_mac: String,
+
+    /// Target MAC.
+    pub dest_mac: String,
+
+    /// BSSID from the frame header.
+    pub bssid: String,
+
+    /// 802.11 reason code (e.g. 7 = Class 3 frame from non-associated STA).
+    pub reason_code: u16,
+
+    /// Signal strength in dBm.
+    pub rssi: i8,
+
+    /// Channel the frame was observed on.
+    pub channel: u8,
+
+    /// Whether the deauth targeted broadcast (FF:FF:FF:FF:FF:FF).
+    pub is_broadcast: bool,
+
+    /// Vendor name of the source MAC.
+    pub vendor: Option<String>,
+
+    /// Unix timestamp (milliseconds).
+    pub timestamp_ms: u64,
+}

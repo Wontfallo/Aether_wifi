@@ -6,3 +6,4 @@
 pub mod audit_commands;
 pub mod capture_commands;
 pub mod network_commands;
+pub mod sniffer_commands;

@@ -38,7 +38,7 @@ mod commands;
 pub mod error;
 pub mod network;
 
-use commands::{audit_commands, capture_commands, network_commands};
+use commands::{audit_commands, capture_commands, network_commands, sniffer_commands};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -59,6 +59,8 @@ pub fn run() {
         ))))
         // Managed state: tracks the active deauth attack
         .manage(audit_commands::DeauthState(std::sync::Arc::new(std::sync::Mutex::new(None))))
+        // Managed state: tracks the active frame sniffer (probe/deauth detection)
+        .manage(sniffer_commands::SnifferState(std::sync::Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             // Network interface management
             network_commands::list_interfaces,
@@ -78,6 +80,9 @@ pub fn run() {
             audit_commands::stop_eapol_capture,
             audit_commands::one_click_capture,
             audit_commands::stop_all_attacks,
+            // Frame sniffer (probe requests + deauth detection)
+            sniffer_commands::start_sniffer,
+            sniffer_commands::stop_sniffer,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Aether application");
