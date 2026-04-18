@@ -100,6 +100,68 @@ export interface StationInfo {
 }
 
 /**
+ * A parsed 802.11 Probe Request frame detected by the sniffer.
+ *
+ * Received via Tauri event `"probe-request"` when the sniffer is active.
+ */
+export interface ProbeRequest {
+    /** Source MAC of the probing device */
+    source_mac: string;
+
+    /** SSID being probed for. Empty string = wildcard probe */
+    ssid: string;
+
+    /** Signal strength in dBm */
+    rssi: number;
+
+    /** Channel the probe was observed on */
+    channel: number;
+
+    /** Frequency in MHz */
+    frequency_mhz: number;
+
+    /** Vendor name from OUI lookup, or null */
+    vendor: string | null;
+
+    /** Unix timestamp in milliseconds */
+    timestamp_ms: number;
+}
+
+/**
+ * A detected deauthentication or disassociation event.
+ *
+ * Received via Tauri event `"deauth-detected"` when the sniffer is active.
+ */
+export interface DeauthEvent {
+    /** MAC of the device that sent the deauth/disassoc */
+    source_mac: string;
+
+    /** Target MAC */
+    dest_mac: string;
+
+    /** BSSID from the frame header */
+    bssid: string;
+
+    /** 802.11 reason code */
+    reason_code: number;
+
+    /** Signal strength in dBm */
+    rssi: number;
+
+    /** Channel the frame was observed on */
+    channel: number;
+
+    /** Whether the deauth targeted broadcast */
+    is_broadcast: boolean;
+
+    /** Vendor name of the source MAC */
+    vendor: string | null;
+
+    /** Unix timestamp in milliseconds */
+    timestamp_ms: number;
+}
+
+/**
  * Error payload returned by Tauri commands on failure.
  */
 export interface AetherError {

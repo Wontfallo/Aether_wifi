@@ -8,10 +8,12 @@ pub mod interface_scanner;
 pub mod mode_controller;
 pub mod oui;
 pub mod packet_sniffer;
+pub mod sniffer;
 pub mod types;
 
 pub use interface_scanner::InterfaceScanner;
 pub use mode_controller::ModeController;
 pub use oui::lookup_vendor;
 pub use packet_sniffer::CaptureHandle;
-pub use types::{BeaconFrame, CaptureStatus, InterfaceMode, InterfaceModeResult, NetworkInterface, StationInfo};
+pub use sniffer::SnifferHandle;
+pub use types::{BeaconFrame, CaptureStatus, DeauthEvent, InterfaceMode, InterfaceModeResult, NetworkInterface, ProbeRequest, StationInfo};
