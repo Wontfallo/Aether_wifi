@@ -120,6 +120,10 @@ pub fn run() {
             utility_commands::select_target_aps,
             utility_commands::get_selected_aps,
             utility_commands::clear_saved_aps,
+            // Wardrive
+            utility_commands::get_gps_location,
+            utility_commands::export_wardrive_csv,
+            utility_commands::export_wardrive_kml,
             // Advanced attacks (CSA, sleep, quiet, bad message, SAE flood)
             advanced_attack_commands::start_channel_switch,
             advanced_attack_commands::start_sleep_attack,

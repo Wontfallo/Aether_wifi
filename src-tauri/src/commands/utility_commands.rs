@@ -1,8 +1,9 @@
 //! Tauri IPC commands for utility functions:
-//! MAC spoofing, SSID list management, WiFi join, AP management.
+//! MAC spoofing, SSID list management, WiFi join, AP management, wardrive.
 
-use crate::network::{mac_spoof, ssid_manager, MacSpoofResult, SsidList};
+use crate::network::{mac_spoof, ssid_manager, wardrive, MacSpoofResult, SsidList};
 use crate::network::ap_manager::{self, ApDetail, ApStore, SavedAp};
+use crate::network::wardrive::WardriveEntry;
 use tauri::AppHandle;
 
 /// Spoof the MAC address of a wireless interface.
@@ -181,4 +182,34 @@ pub async fn get_selected_aps(app: AppHandle) -> Result<Vec<SavedAp>, String> {
 pub async fn clear_saved_aps(app: AppHandle) -> Result<(), String> {
     let data_dir = data_dir_for(&app)?;
     ap_manager::clear_aps(&data_dir).map_err(|e| e.to_string())
+}
+
+// ─────────────────────────────────────────────────
+// Wardrive
+// ─────────────────────────────────────────────────
+
+/// Get current GPS location (if gpsd is running).
+#[tauri::command]
+pub async fn get_gps_location() -> Result<Option<wardrive::GpsLocation>, String> {
+    Ok(wardrive::get_gps_location())
+}
+
+/// Export wardrive entries to WiGLE CSV format.
+#[tauri::command]
+pub async fn export_wardrive_csv(
+    entries: Vec<WardriveEntry>,
+    output_path: String,
+) -> Result<usize, String> {
+    wardrive::export_wigle_csv(&entries, std::path::Path::new(&output_path))
+        .map_err(|e| e.to_string())
+}
+
+/// Export wardrive entries to KML format.
+#[tauri::command]
+pub async fn export_wardrive_kml(
+    entries: Vec<WardriveEntry>,
+    output_path: String,
+) -> Result<usize, String> {
+    wardrive::export_kml(&entries, std::path::Path::new(&output_path))
+        .map_err(|e| e.to_string())
 }
