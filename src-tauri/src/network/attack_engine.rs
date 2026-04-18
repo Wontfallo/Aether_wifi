@@ -30,11 +30,11 @@ use std::sync::Arc;
 
 /// Handle for a running attack process.
 pub struct AttackHandle {
-    stop_flag: Arc<AtomicBool>,
-    child: Option<Child>,
-    thread: Option<std::thread::JoinHandle<()>>,
+    pub(crate) stop_flag: Arc<AtomicBool>,
+    pub(crate) child: Option<Child>,
+    pub(crate) thread: Option<std::thread::JoinHandle<()>>,
     /// Temp files to clean up when stopped.
-    temp_files: Vec<String>,
+    pub(crate) temp_files: Vec<String>,
 }
 
 impl AttackHandle {
