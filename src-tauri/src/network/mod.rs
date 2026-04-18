@@ -6,10 +6,13 @@
 pub mod attack_engine;
 pub mod audit;
 pub mod interface_scanner;
+pub mod mac_spoof;
 pub mod mode_controller;
+pub mod net_scanner;
 pub mod oui;
 pub mod packet_sniffer;
 pub mod sniffer;
+pub mod ssid_manager;
 pub mod types;
 
 pub use interface_scanner::InterfaceScanner;
@@ -18,4 +21,6 @@ pub use oui::lookup_vendor;
 pub use packet_sniffer::CaptureHandle;
 pub use sniffer::SnifferHandle;
 pub use attack_engine::{AttackHandle, BettercapHandle};
-pub use types::{BeaconFrame, CaptureStatus, DeauthEvent, InterfaceMode, InterfaceModeResult, NetworkInterface, ProbeRequest, StationInfo};
+pub use mac_spoof::MacSpoofResult;
+pub use ssid_manager::SsidList;
+pub use types::{BeaconFrame, CaptureStatus, DeauthEvent, HostInfo, InterfaceMode, InterfaceModeResult, NetworkInterface, PortResult, ProbeRequest, ServiceInfo, StationInfo};

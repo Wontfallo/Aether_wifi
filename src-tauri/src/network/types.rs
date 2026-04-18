@@ -245,3 +245,40 @@ pub struct DeauthEvent {
     /// Unix timestamp (milliseconds).
     pub timestamp_ms: u64,
 }
+
+// ─────────────────────────────────────────────────
+// Network Scanner Types
+// ─────────────────────────────────────────────────
+
+/// Host discovered via ping/ARP scan.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HostInfo {
+    pub ip: String,
+    pub mac: Option<String>,
+    pub hostname: Option<String>,
+    pub vendor: Option<String>,
+    pub is_up: bool,
+    pub timestamp_ms: u64,
+}
+
+/// Result of a port scan on a single port.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PortResult {
+    pub host: String,
+    pub port: u16,
+    pub protocol: String,
+    pub state: String,
+    pub service: Option<String>,
+    pub version: Option<String>,
+}
+
+/// A discovered network service (SSH, Telnet, etc.)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceInfo {
+    pub host: String,
+    pub port: u16,
+    pub service: String,
+    pub version: Option<String>,
+    pub mac: Option<String>,
+    pub vendor: Option<String>,
+}
