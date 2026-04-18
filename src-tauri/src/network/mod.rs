@@ -3,6 +3,7 @@
 //! Handles interface discovery, mode management, packet capture,
 //! and interaction with the Linux wireless stack.
 
+pub mod attack_engine;
 pub mod audit;
 pub mod interface_scanner;
 pub mod mode_controller;
@@ -16,4 +17,5 @@ pub use mode_controller::ModeController;
 pub use oui::lookup_vendor;
 pub use packet_sniffer::CaptureHandle;
 pub use sniffer::SnifferHandle;
+pub use attack_engine::{AttackHandle, BettercapHandle};
 pub use types::{BeaconFrame, CaptureStatus, DeauthEvent, InterfaceMode, InterfaceModeResult, NetworkInterface, ProbeRequest, StationInfo};

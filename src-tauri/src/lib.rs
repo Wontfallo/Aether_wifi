@@ -38,7 +38,7 @@ mod commands;
 pub mod error;
 pub mod network;
 
-use commands::{audit_commands, capture_commands, network_commands, sniffer_commands};
+use commands::{attack_commands, audit_commands, capture_commands, network_commands, sniffer_commands};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -61,6 +61,10 @@ pub fn run() {
         .manage(audit_commands::DeauthState(std::sync::Arc::new(std::sync::Mutex::new(None))))
         // Managed state: tracks the active frame sniffer (probe/deauth detection)
         .manage(sniffer_commands::SnifferState(std::sync::Mutex::new(None)))
+        // Managed state: tracks the active mdk4 attack
+        .manage(attack_commands::AttackState(std::sync::Mutex::new(None)))
+        // Managed state: tracks the bettercap daemon
+        .manage(attack_commands::BettercapState(std::sync::Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             // Network interface management
             network_commands::list_interfaces,
@@ -83,6 +87,16 @@ pub fn run() {
             // Frame sniffer (probe requests + deauth detection)
             sniffer_commands::start_sniffer,
             sniffer_commands::stop_sniffer,
+            // Attack engine (mdk4 + bettercap)
+            attack_commands::start_beacon_spam,
+            attack_commands::start_probe_flood,
+            attack_commands::start_mdk4_deauth,
+            attack_commands::stop_attack,
+            attack_commands::start_bettercap_daemon,
+            attack_commands::stop_bettercap_daemon,
+            attack_commands::start_evil_portal,
+            attack_commands::start_karma_attack,
+            attack_commands::bettercap_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Aether application");
