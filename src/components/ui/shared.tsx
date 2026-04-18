@@ -1,145 +1,120 @@
+/**
+ * Aether — Shared UI Components (shadcn wrappers)
+ *
+ * Thin wrappers around shadcn/ui components that provide the API
+ * expected by Aether page components. All styling comes from shadcn.
+ */
 import { type ReactNode } from "react";
-import { cn } from "./tooltip";
+import { cn } from "@/lib/utils";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+import { Loader2 } from "lucide-react";
 
 /* ─── Glass Card ─── */
-interface GlassCardProps {
-  children: ReactNode;
-  className?: string;
-  accent?: "primary" | "destructive" | "green" | "yellow" | "none";
-}
-
-const accentColors = {
-  primary: "group-hover:bg-primary",
-  destructive: "group-hover:bg-destructive",
-  green: "group-hover:bg-radar-green",
-  yellow: "group-hover:bg-radar-yellow",
-  none: "",
-};
-
-export function GlassCard({ children, className, accent = "primary" }: GlassCardProps) {
+export function GlassCard({
+  children, className,
+}: {
+  children: ReactNode; className?: string; accent?: string;
+}) {
   return (
-    <div className={cn("glass-panel rounded-xl relative overflow-hidden group", className)}>
-      {accent !== "none" && (
-        <div className={cn("absolute top-0 left-0 w-1 h-full bg-border transition-colors", accentColors[accent])} />
-      )}
-      {children}
-    </div>
+    <Card className={cn("bg-card/80 backdrop-blur-xl", className)}>
+      <CardContent className="p-6">{children}</CardContent>
+    </Card>
   );
 }
 
 /* ─── Stat Card ─── */
-interface StatCardProps {
-  label: string;
-  value: string | number;
-  accent?: "primary" | "destructive" | "green" | "yellow";
-}
-
-const statColors = {
-  primary: "text-primary",
-  destructive: "text-destructive",
-  green: "text-radar-green",
-  yellow: "text-radar-yellow",
-};
-
-export function StatCard({ label, value, accent = "primary" }: StatCardProps) {
+export function StatCard({
+  label, value, accent = "text-primary",
+}: {
+  label: string; value: string | number; accent?: string;
+}) {
   return (
-    <GlassCard accent={accent} className="p-6">
-      <p className="text-muted-foreground font-mono text-xs uppercase tracking-widest mb-2">{label}</p>
-      <h2 className={cn("text-4xl font-bold font-mono", statColors[accent])}>{value}</h2>
-    </GlassCard>
+    <Card className="bg-card/80 backdrop-blur-xl">
+      <CardContent className="p-6">
+        <p className="text-muted-foreground font-mono text-xs uppercase tracking-widest mb-2">{label}</p>
+        <h2 className={cn("text-3xl font-bold font-mono", accent)}>{value}</h2>
+      </CardContent>
+    </Card>
   );
 }
 
 /* ─── Status Badge ─── */
-interface StatusBadgeProps {
-  status: "active" | "inactive" | "error" | "warning" | "success";
-  label?: string;
-  pulse?: boolean;
-}
-
-const badgeConfig = {
-  active: { dot: "bg-radar-green", text: "text-radar-green", label: "Active" },
-  inactive: { dot: "bg-muted-foreground", text: "text-muted-foreground", label: "Inactive" },
-  error: { dot: "bg-destructive", text: "text-destructive", label: "Error" },
-  warning: { dot: "bg-radar-yellow", text: "text-radar-yellow", label: "Warning" },
-  success: { dot: "bg-radar-green", text: "text-radar-green", label: "Success" },
+const badgeVariantMap = {
+  active: "default" as const,
+  success: "default" as const,
+  inactive: "secondary" as const,
+  error: "destructive" as const,
+  warning: "outline" as const,
 };
 
-export function StatusBadge({ status, label, pulse = true }: StatusBadgeProps) {
-  const config = badgeConfig[status];
+export function StatusBadge({
+  status, label, pulse = true,
+}: {
+  status: "active" | "inactive" | "error" | "warning" | "success";
+  label?: string; pulse?: boolean;
+}) {
+  const defaultLabels = { active: "Active", inactive: "Inactive", error: "Error", warning: "Warning", success: "Success" };
+  const dotColors = { active: "bg-green-400", success: "bg-green-400", inactive: "bg-muted-foreground", error: "bg-destructive", warning: "bg-yellow-400" };
+
   return (
-    <div className="flex gap-2 items-center">
-      <div className={cn("w-2 h-2 rounded-full", config.dot, pulse && status === "active" && "animate-pulse-fast")} />
-      <span className={cn("font-mono text-[10px] uppercase tracking-wider", config.text)}>
-        {label || config.label}
-      </span>
-    </div>
+    <Badge variant={badgeVariantMap[status]} className="gap-1.5 font-mono text-[10px] uppercase tracking-wider">
+      <span className={cn("inline-block w-1.5 h-1.5 rounded-full", dotColors[status], pulse && status === "active" && "animate-pulse")} />
+      {label || defaultLabels[status]}
+    </Badge>
   );
 }
 
 /* ─── Action Button ─── */
-interface ActionButtonProps {
-  children: ReactNode;
-  onClick?: () => void;
-  variant?: "primary" | "destructive" | "ghost";
-  size?: "sm" | "md" | "lg";
-  disabled?: boolean;
-  loading?: boolean;
-  className?: string;
-}
-
 export function ActionButton({
   children, onClick, variant = "primary", size = "md", disabled, loading, className,
-}: ActionButtonProps) {
-  const variants = {
-    primary: "bg-primary/10 border-primary text-primary hover:bg-primary hover:text-black",
-    destructive: "bg-destructive/10 border-destructive text-destructive hover:bg-destructive hover:text-white",
-    ghost: "bg-transparent border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-  };
-  const sizes = {
-    sm: "px-3 py-1.5 text-[11px]",
-    md: "px-4 py-2 text-sm",
-    lg: "px-6 py-3 text-sm",
-  };
+}: {
+  children: ReactNode; onClick?: () => void;
+  variant?: "primary" | "destructive" | "ghost";
+  size?: "sm" | "md" | "lg";
+  disabled?: boolean; loading?: boolean; className?: string;
+}) {
+  const variantMap = { primary: "default" as const, destructive: "destructive" as const, ghost: "ghost" as const };
+  const sizeMap = { sm: "sm" as const, md: "default" as const, lg: "lg" as const };
 
   return (
-    <button
+    <Button
       onClick={onClick}
       disabled={disabled || loading}
-      className={cn(
-        "flex items-center gap-2 rounded font-mono uppercase tracking-widest border transition-all disabled:opacity-50 disabled:cursor-not-allowed",
-        variants[variant],
-        sizes[size],
-        className,
-      )}
+      variant={variantMap[variant]}
+      size={sizeMap[size]}
+      className={cn("font-mono uppercase tracking-widest", className)}
     >
-      {loading && <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />}
+      {loading && <Loader2 className="w-4 h-4 animate-spin" />}
       {children}
-    </button>
+    </Button>
   );
 }
 
 /* ─── Page Header ─── */
-interface PageHeaderProps {
-  icon: ReactNode;
-  title: string;
-  subtitle: string;
-  description?: string;
-  accent?: string;
-  children?: ReactNode;
-}
-
-export function PageHeader({ icon, title, subtitle, description, accent = "text-primary", children }: PageHeaderProps) {
+export function PageHeader({
+  icon, title, subtitle, description, children,
+}: {
+  icon: ReactNode; title: string; subtitle: string;
+  description?: string; accent?: string; children?: ReactNode;
+}) {
   return (
-    <header className="mb-8 flex justify-between items-start">
+    <header className="mb-6 flex justify-between items-start">
       <div>
-        <h1 className="text-3xl font-mono font-bold tracking-tight text-foreground flex items-center gap-3">
+        <h1 className="text-2xl font-mono font-bold tracking-tight text-foreground flex items-center gap-3">
           {icon}
-          <span className={cn("text-glow", accent)}>{title}</span>
-          <span className="opacity-50 text-muted-foreground font-sans text-2xl font-normal">// {subtitle}</span>
+          <span className="text-glow">{title}</span>
+          <span className="text-muted-foreground font-normal text-lg">// {subtitle}</span>
         </h1>
         {description && (
-          <p className="text-muted-foreground mt-2 font-mono text-sm uppercase tracking-wider">{description}</p>
+          <p className="text-muted-foreground mt-1 font-mono text-xs uppercase tracking-wider">{description}</p>
         )}
       </div>
       {children && <div className="flex items-center gap-3">{children}</div>}
@@ -155,152 +130,123 @@ interface Column<T> {
   render?: (item: T) => ReactNode;
 }
 
-interface DataTableProps<T> {
-  columns: Column<T>[];
-  data: T[];
-  keyField: string;
-  emptyMessage?: string;
-  maxHeight?: string;
-  onRowClick?: (item: T) => void;
-}
-
 export function DataTable<T extends Record<string, unknown>>({
-  columns, data, keyField, emptyMessage = "No data.", maxHeight, onRowClick,
-}: DataTableProps<T>) {
+  columns, data, keyField, emptyMessage = "No data.", onRowClick, maxHeight,
+}: {
+  columns: Column<T>[]; data: T[]; keyField: string;
+  emptyMessage?: string; onRowClick?: (item: T) => void; maxHeight?: string;
+}) {
   return (
-    <div className="glass-panel rounded-xl overflow-hidden border border-border/40 flex flex-col" style={maxHeight ? { maxHeight } : undefined}>
-      <div className="overflow-auto flex-1 bg-black/20">
-        <table className="w-full text-left font-mono text-sm border-collapse">
-          <thead className="sticky top-0 bg-background/95 backdrop-blur z-10 border-b border-border/40">
-            <tr>
-              {columns.map((col) => (
-                <th
-                  key={col.key}
-                  className={cn(
-                    "py-3 px-5 font-normal text-muted-foreground uppercase tracking-widest text-[11px]",
-                    col.align === "center" && "text-center",
-                    col.align === "right" && "text-right",
-                  )}
-                >
-                  {col.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {data.length === 0 ? (
-              <tr>
-                <td colSpan={columns.length} className="py-8 text-center text-muted-foreground italic text-xs">
-                  {emptyMessage}
-                </td>
-              </tr>
-            ) : (
-              data.map((item) => (
-                <tr
-                  key={String(item[keyField])}
-                  onClick={() => onRowClick?.(item)}
-                  className={cn(
-                    "border-b border-border/10 hover:bg-white/5 transition-colors",
-                    onRowClick && "cursor-pointer",
-                  )}
-                >
-                  {columns.map((col) => (
-                    <td
-                      key={col.key}
-                      className={cn(
-                        "py-2.5 px-5 text-foreground/80",
-                        col.align === "center" && "text-center",
-                        col.align === "right" && "text-right",
-                      )}
-                    >
-                      {col.render ? col.render(item) : String(item[col.key] ?? "")}
-                    </td>
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+    <div className="rounded-xl border overflow-hidden" style={maxHeight ? { maxHeight, overflowY: "auto" } : undefined}>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            {columns.map((col) => (
+              <TableHead
+                key={col.key}
+                className={cn(
+                  "font-mono text-[11px] uppercase tracking-widest",
+                  col.align === "center" && "text-center",
+                  col.align === "right" && "text-right",
+                )}
+              >
+                {col.label}
+              </TableHead>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground italic">
+                {emptyMessage}
+              </TableCell>
+            </TableRow>
+          ) : (
+            data.map((item) => (
+              <TableRow
+                key={String(item[keyField])}
+                onClick={() => onRowClick?.(item)}
+                className={onRowClick ? "cursor-pointer" : undefined}
+              >
+                {columns.map((col) => (
+                  <TableCell
+                    key={col.key}
+                    className={cn(
+                      "font-mono text-sm",
+                      col.align === "center" && "text-center",
+                      col.align === "right" && "text-right",
+                    )}
+                  >
+                    {col.render ? col.render(item) : String(item[col.key] ?? "")}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
     </div>
   );
 }
 
 /* ─── Tab Bar ─── */
-interface TabBarProps {
+export function TabBar({
+  tabs, active, onChange,
+}: {
   tabs: { id: string; label: string; icon?: ReactNode }[];
   active: string;
   onChange: (id: string) => void;
-}
-
-export function TabBar({ tabs, active, onChange }: TabBarProps) {
+}) {
   return (
-    <div className="flex gap-1 p-1 bg-muted/30 rounded-lg border border-border/40 mb-6">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          onClick={() => onChange(tab.id)}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-md font-mono text-xs uppercase tracking-widest transition-all",
-            active === tab.id
-              ? "bg-primary/15 text-primary shadow-sm border border-primary/20"
-              : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
-          )}
-        >
-          {tab.icon}
-          {tab.label}
-        </button>
-      ))}
-    </div>
+    <Tabs value={active} onValueChange={onChange}>
+      <TabsList>
+        {tabs.map((tab) => (
+          <TabsTrigger key={tab.id} value={tab.id} className="gap-1.5 font-mono text-xs uppercase tracking-widest">
+            {tab.icon}
+            {tab.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
   );
 }
 
 /* ─── Input Field ─── */
-interface InputFieldProps {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  type?: string;
-  className?: string;
-  mono?: boolean;
-}
-
-export function InputField({ label, value, onChange, placeholder, type = "text", className, mono = true }: InputFieldProps) {
+export function InputField({
+  label, value, onChange, placeholder, type = "text", className,
+}: {
+  label: string; value: string; onChange: (value: string) => void;
+  placeholder?: string; type?: string; className?: string; mono?: boolean;
+}) {
   return (
     <div className={className}>
-      <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">{label}</label>
-      <input
+      <Label className="font-mono text-xs uppercase tracking-widest mb-2 block">{label}</Label>
+      <Input
         type={type}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={cn(
-          "w-full bg-black/40 border border-border/60 rounded px-4 py-2 text-sm text-foreground focus:border-primary focus:outline-none transition-colors",
-          mono && "font-mono",
-        )}
+        className="font-mono"
       />
     </div>
   );
 }
 
 /* ─── Select Field ─── */
-interface SelectFieldProps {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-  className?: string;
-}
-
-export function SelectField({ label, value, onChange, options, className }: SelectFieldProps) {
+export function SelectField({
+  label, value, onChange, options, className,
+}: {
+  label: string; value: string; onChange: (value: string) => void;
+  options: { value: string; label: string }[]; className?: string;
+}) {
   return (
     <div className={className}>
-      <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">{label}</label>
+      <Label className="font-mono text-xs uppercase tracking-widest mb-2 block">{label}</Label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-black/40 border border-border/60 rounded px-4 py-2 font-mono text-sm text-foreground focus:border-primary focus:outline-none transition-colors appearance-none"
+        className="flex h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 font-mono text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -318,7 +264,7 @@ export function SignalBar({ rssi }: { rssi: number }) {
 
   return (
     <div className="flex items-center gap-3">
-      <div className="w-16 h-1.5 bg-black rounded-full overflow-hidden">
+      <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
         <div className={cn("h-full rounded-full", color)} style={{ width: `${pct}%` }} />
       </div>
       <span className={cn("font-bold font-mono text-xs", textColor)}>{rssi}</span>
@@ -327,7 +273,11 @@ export function SignalBar({ rssi }: { rssi: number }) {
 }
 
 /* ─── Empty State ─── */
-export function EmptyState({ icon, title, description }: { icon: ReactNode; title: string; description?: string }) {
+export function EmptyState({
+  icon, title, description,
+}: {
+  icon: ReactNode; title: string; description?: string;
+}) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
       <div className="mb-4 opacity-30">{icon}</div>
@@ -336,3 +286,24 @@ export function EmptyState({ icon, title, description }: { icon: ReactNode; titl
     </div>
   );
 }
+
+// Re-export shadcn primitives for direct use
+export { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+export { Badge } from "@/components/ui/badge";
+export { Button } from "@/components/ui/button";
+export { Input } from "@/components/ui/input";
+export { Label } from "@/components/ui/label";
+export { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+export {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table";
+export { Separator } from "@/components/ui/separator";
+export { Switch } from "@/components/ui/switch";
+export { Textarea } from "@/components/ui/textarea";
+export {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
+export {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+export { ScrollArea } from "@/components/ui/scroll-area";

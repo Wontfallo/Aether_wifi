@@ -367,6 +367,8 @@ function PmkidTab() {
     setLoading(false);
   };
 
+  type PmkidRow = PmkidCapture & { _id: number; [key: string]: unknown };
+
   const copyHashcat = useCallback((item: PmkidRow) => {
     navigator.clipboard.writeText(item.hashcat_line).catch(() => {});
     setCopied(item._id);
@@ -385,7 +387,6 @@ function PmkidTab() {
     URL.revokeObjectURL(url);
   }, [captures]);
 
-  type PmkidRow = PmkidCapture & { _id: number; [key: string]: unknown };
   const columns = useMemo(() => [
     { key: "time", label: "Time", render: (r: PmkidRow) => <span className="text-muted-foreground">{formatTime(r.timestamp_ms)}</span> },
     { key: "bssid", label: "BSSID", render: (r: PmkidRow) => <span className="text-primary font-mono">{r.bssid}</span> },
