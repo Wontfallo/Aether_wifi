@@ -108,6 +108,12 @@ pub fn run() {
             utility_commands::generate_random_ssids,
             utility_commands::join_wifi,
             utility_commands::disconnect_wifi,
+            // AP list management
+            utility_commands::load_saved_aps,
+            utility_commands::save_scan_aps,
+            utility_commands::select_target_aps,
+            utility_commands::get_selected_aps,
+            utility_commands::clear_saved_aps,
             // Network scanner (ping, ARP, port, SSH, telnet)
             scanner_commands::ping_scan,
             scanner_commands::arp_scan,

@@ -319,3 +319,40 @@ export interface SsidList {
     name: string;
     ssids: string[];
 }
+
+/**
+ * A saved access point with all known metadata.
+ */
+export interface SavedAp {
+    bssid: string;
+    ssid: string;
+    channel: number;
+    rssi: number;
+    encryption: string | null;
+    vendor: string | null;
+    first_seen_ms: number;
+    last_seen_ms: number;
+    client_count: number;
+    selected: boolean;
+}
+
+/**
+ * Detailed AP info aggregated from multiple captures.
+ */
+export interface ApDetail {
+    bssid: string;
+    ssid: string;
+    channel: number;
+    frequency_mhz: number;
+    rssi: number;
+    rssi_history: number[];
+    encryption: string | null;
+    cipher: string | null;
+    auth: string | null;
+    vendor: string | null;
+    client_count: number;
+    clients: string[];
+    first_seen_ms: number;
+    last_seen_ms: number;
+    beacon_count: number;
+}

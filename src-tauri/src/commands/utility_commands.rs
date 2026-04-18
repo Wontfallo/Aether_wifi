@@ -1,7 +1,8 @@
 //! Tauri IPC commands for utility functions:
-//! MAC spoofing, SSID list management, WiFi join.
+//! MAC spoofing, SSID list management, WiFi join, AP management.
 
 use crate::network::{mac_spoof, ssid_manager, MacSpoofResult, SsidList};
+use crate::network::ap_manager::{self, ApDetail, ApStore, SavedAp};
 use tauri::AppHandle;
 
 /// Spoof the MAC address of a wireless interface.
@@ -137,4 +138,47 @@ fn data_dir_for(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     app.path()
         .app_data_dir()
         .map_err(|e| format!("Cannot resolve data dir: {}", e))
+}
+
+// ─────────────────────────────────────────────────
+// AP List Management
+// ─────────────────────────────────────────────────
+
+/// Load all saved APs.
+#[tauri::command]
+pub async fn load_saved_aps(app: AppHandle) -> Result<Vec<SavedAp>, String> {
+    let data_dir = data_dir_for(&app)?;
+    Ok(ap_manager::load_aps(&data_dir).aps)
+}
+
+/// Save/upsert APs from scan results.
+#[tauri::command]
+pub async fn save_scan_aps(app: AppHandle, aps: Vec<SavedAp>) -> Result<usize, String> {
+    let data_dir = data_dir_for(&app)?;
+    ap_manager::upsert_aps(&data_dir, aps).map_err(|e| e.to_string())
+}
+
+/// Select APs for targeting.
+#[tauri::command]
+pub async fn select_target_aps(
+    app: AppHandle,
+    bssids: Vec<String>,
+    selected: bool,
+) -> Result<usize, String> {
+    let data_dir = data_dir_for(&app)?;
+    ap_manager::select_aps(&data_dir, &bssids, selected).map_err(|e| e.to_string())
+}
+
+/// Get all selected (targeted) APs.
+#[tauri::command]
+pub async fn get_selected_aps(app: AppHandle) -> Result<Vec<SavedAp>, String> {
+    let data_dir = data_dir_for(&app)?;
+    Ok(ap_manager::get_selected_aps(&data_dir))
+}
+
+/// Clear all saved APs.
+#[tauri::command]
+pub async fn clear_saved_aps(app: AppHandle) -> Result<(), String> {
+    let data_dir = data_dir_for(&app)?;
+    ap_manager::clear_aps(&data_dir).map_err(|e| e.to_string())
 }
