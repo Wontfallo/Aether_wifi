@@ -49,6 +49,7 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::types::BeaconFrame;
+use super::types::StationInfo;
 
 // ─────────────────────────────────────────────────
 // Constants: 802.11 Frame Control
@@ -144,16 +145,18 @@ impl CaptureHandle {
 /// Start capturing beacon frames on the specified monitor-mode interface.
 ///
 /// The capture runs in a background thread. Parsed [`BeaconFrame`] payloads
-/// are sent to the provided callback, which the Tauri command layer uses
-/// to emit IPC events.
+/// are sent to `on_beacon`, and parsed [`StationInfo`] payloads are sent to
+/// `on_station`. The Tauri command layer uses these callbacks to emit IPC events.
 ///
 /// Returns a [`CaptureHandle`] that can be used to stop the capture.
-pub fn start_capture<F>(
+pub fn start_capture<F, S>(
     interface_name: &str,
     on_beacon: F,
+    on_station: S,
 ) -> Result<CaptureHandle, crate::error::AetherError>
 where
     F: Fn(BeaconFrame) + Send + 'static,
+    S: Fn(StationInfo) + Send + 'static,
 {
     #[cfg(target_os = "linux")]
     if command_exists("airodump-ng") {
@@ -161,7 +164,7 @@ where
             "Using airodump-ng capture backend on '{}'",
             interface_name
         );
-        return start_airodump_capture(interface_name, on_beacon);
+        return start_airodump_capture(interface_name, on_beacon, on_station);
     }
 
     info!("Opening pcap capture on interface '{}'...", interface_name);
@@ -315,12 +318,14 @@ where
 }
 
 #[cfg(target_os = "linux")]
-fn start_airodump_capture<F>(
+fn start_airodump_capture<F, S>(
     interface_name: &str,
     on_beacon: F,
+    on_station: S,
 ) -> Result<CaptureHandle, crate::error::AetherError>
 where
     F: Fn(BeaconFrame) + Send + 'static,
+    S: Fn(StationInfo) + Send + 'static,
 {
     let stop_flag = Arc::new(AtomicBool::new(false));
     let stop_clone = stop_flag.clone();
@@ -337,7 +342,7 @@ where
     let thread = std::thread::Builder::new()
         .name(format!("aether-airodump-{}", interface_name))
         .spawn(move || {
-            airodump_capture_loop(&iface_name, &output_prefix, stop_clone, on_beacon);
+            airodump_capture_loop(&iface_name, &output_prefix, stop_clone, on_beacon, on_station);
         })
         .map_err(|e| crate::error::AetherError::CaptureError(format!(
             "Failed to spawn airodump capture thread: {}",
@@ -352,13 +357,15 @@ where
 }
 
 #[cfg(target_os = "linux")]
-fn airodump_capture_loop<F>(
+fn airodump_capture_loop<F, S>(
     interface_name: &str,
     output_prefix: &str,
     stop_flag: Arc<AtomicBool>,
     on_beacon: F,
+    on_station: S,
 ) where
     F: Fn(BeaconFrame),
+    S: Fn(StationInfo),
 {
     info!(
         "Starting airodump-ng capture loop on '{}' with prefix '{}'",
@@ -391,6 +398,13 @@ fn airodump_capture_loop<F>(
                 }
                 for beacon in beacons {
                     on_beacon(beacon);
+                }
+                let stations = parse_airodump_stations(&contents);
+                if !stations.is_empty() {
+                    info!("airodump-ng parsed {} stations from CSV", stations.len());
+                }
+                for station in stations {
+                    on_station(station);
                 }
             }
         }
@@ -490,6 +504,80 @@ fn parse_airodump_csv(contents: &str) -> Vec<BeaconFrame> {
     }
 
     beacons
+}
+
+/// Parse the station (client device) section of an airodump-ng CSV file.
+///
+/// The station section starts after a line beginning with `"Station MAC"` and
+/// contains one row per observed client device.
+#[cfg(target_os = "linux")]
+fn parse_airodump_stations(contents: &str) -> Vec<StationInfo> {
+    let mut stations = Vec::new();
+    let mut in_station_section = false;
+
+    for line in contents.lines() {
+        let trimmed = line.trim();
+
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        if trimmed.starts_with("Station MAC") {
+            in_station_section = true;
+            continue;
+        }
+
+        if !in_station_section {
+            continue;
+        }
+
+        let columns: Vec<&str> = line.split(',').map(|part| part.trim()).collect();
+        if columns.len() < 7 {
+            continue;
+        }
+
+        let mac = columns[0];
+        if !looks_like_bssid(mac) {
+            continue;
+        }
+
+        let rssi = columns[3].parse::<i8>().unwrap_or(-100);
+        let packet_count = columns[4].parse::<u32>().unwrap_or(0);
+
+        let associated_bssid = {
+            let bssid = columns[5].trim();
+            if bssid == "(not associated)" || !looks_like_bssid(bssid) {
+                None
+            } else {
+                Some(bssid.to_ascii_uppercase())
+            }
+        };
+
+        // Probed ESSIDs occupy columns[6..], re-joined because SSID names
+        // themselves never contain commas in the airodump format but the
+        // field list is comma-separated.
+        let probed_ssids: Vec<String> = columns[6..]
+            .join(",")
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        stations.push(StationInfo {
+            mac: mac.to_ascii_uppercase(),
+            associated_bssid,
+            rssi,
+            packet_count,
+            probed_ssids,
+            vendor: None,
+            timestamp_ms: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64,
+        });
+    }
+
+    stations
 }
 
 #[cfg(target_os = "linux")]
@@ -1076,5 +1164,75 @@ mod tests {
 
         assert_eq!(rssi, Some(-72));
         assert_eq!(frequency, Some(2437));
+    }
+
+    #[test]
+    fn parse_stations_basic() {
+        let csv = "\
+BSSID, First time seen, Last time seen, channel, Speed, Privacy, Cipher, Authentication, Power, # beacons, # IV, LAN IP, ID-length, ESSID
+AA:BB:CC:DD:EE:FF, 2024-01-01 12:00:00, 2024-01-01 12:01:00,  6, 54, WPA2, CCMP, PSK, -45, 100, 0, 0.  0.  0.  0, 7, TestNet
+
+Station MAC, First time seen, Last time seen, Power, # packets, BSSID, Probed ESSIDs
+11:22:33:44:55:66, 2024-01-01 12:00:00, 2024-01-01 12:01:00, -65, 100, AA:BB:CC:DD:EE:FF, MyNetwork
+AA:BB:CC:00:11:22, 2024-01-01 12:00:00, 2024-01-01 12:01:00, -72, 50, (not associated), HomeWifi,OfficeNet
+DD:EE:FF:00:11:22, 2024-01-01 12:00:00, 2024-01-01 12:01:00, -80, 5, (not associated),
+";
+        let stations = parse_airodump_stations(csv);
+        assert_eq!(stations.len(), 3);
+
+        // First station: associated
+        assert_eq!(stations[0].mac, "11:22:33:44:55:66");
+        assert_eq!(stations[0].associated_bssid.as_deref(), Some("AA:BB:CC:DD:EE:FF"));
+        assert_eq!(stations[0].rssi, -65);
+        assert_eq!(stations[0].packet_count, 100);
+        assert_eq!(stations[0].probed_ssids, vec!["MyNetwork"]);
+        assert!(stations[0].vendor.is_none());
+
+        // Second station: unassociated with multiple probes
+        assert_eq!(stations[1].mac, "AA:BB:CC:00:11:22");
+        assert!(stations[1].associated_bssid.is_none());
+        assert_eq!(stations[1].rssi, -72);
+        assert_eq!(stations[1].packet_count, 50);
+        assert_eq!(stations[1].probed_ssids, vec!["HomeWifi", "OfficeNet"]);
+
+        // Third station: unassociated with no probes
+        assert_eq!(stations[2].mac, "DD:EE:FF:00:11:22");
+        assert!(stations[2].associated_bssid.is_none());
+        assert_eq!(stations[2].rssi, -80);
+        assert_eq!(stations[2].packet_count, 5);
+        assert!(stations[2].probed_ssids.is_empty());
+    }
+
+    #[test]
+    fn parse_stations_empty_csv() {
+        let csv = "\
+BSSID, First time seen, Last time seen, channel, Speed, Privacy, Cipher, Authentication, Power, # beacons, # IV, LAN IP, ID-length, ESSID
+";
+        let stations = parse_airodump_stations(csv);
+        assert!(stations.is_empty());
+    }
+
+    #[test]
+    fn parse_stations_no_station_section() {
+        let csv = "\
+BSSID, First time seen, Last time seen, channel, Speed, Privacy, Cipher, Authentication, Power, # beacons, # IV, LAN IP, ID-length, ESSID
+AA:BB:CC:DD:EE:FF, 2024-01-01 12:00:00, 2024-01-01 12:01:00,  6, 54, WPA2, CCMP, PSK, -45, 100, 0, 0.  0.  0.  0, 7, TestNet
+";
+        let stations = parse_airodump_stations(csv);
+        assert!(stations.is_empty());
+    }
+
+    #[test]
+    fn parse_stations_skips_malformed_lines() {
+        let csv = "\
+Station MAC, First time seen, Last time seen, Power, # packets, BSSID, Probed ESSIDs
+not-a-mac, 2024-01-01 12:00:00, 2024-01-01 12:01:00, -65, 100, AA:BB:CC:DD:EE:FF, MyNet
+11:22:33:44:55:66, 2024-01-01 12:00:00, 2024-01-01 12:01:00, -50, 200, BB:CC:DD:EE:FF:00, ValidNet
+too,few,cols
+";
+        let stations = parse_airodump_stations(csv);
+        assert_eq!(stations.len(), 1);
+        assert_eq!(stations[0].mac, "11:22:33:44:55:66");
+        assert_eq!(stations[0].probed_ssids, vec!["ValidNet"]);
     }
 }

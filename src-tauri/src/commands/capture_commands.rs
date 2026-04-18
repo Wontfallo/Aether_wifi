@@ -70,6 +70,9 @@ pub fn start_capture(
     let handle = app_handle.clone();
     let iface_clone = interface_name.clone();
 
+    let station_handle = app_handle.clone();
+    let station_iface_clone = interface_name.clone();
+
     let capture_handle = network::packet_sniffer::start_capture(
         &interface_name,
         move |beacon| {
@@ -78,6 +81,15 @@ pub fn start_capture(
                 log::warn!(
                     "Failed to emit beacon-frame event on '{}': {}",
                     iface_clone,
+                    e
+                );
+            }
+        },
+        move |station| {
+            if let Err(e) = station_handle.emit("station-info", &station) {
+                log::warn!(
+                    "Failed to emit station-info event on '{}': {}",
+                    station_iface_clone,
                     e
                 );
             }

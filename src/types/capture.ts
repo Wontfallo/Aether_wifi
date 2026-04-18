@@ -58,6 +58,45 @@ export interface CaptureStatus {
 }
 
 /**
+ * A discovered WiFi client station emitted by the Rust packet sniffer.
+ *
+ * Received via Tauri event `"station-info"` when a capture session is active.
+ *
+ * @example
+ * ```typescript
+ * import { listen } from '@tauri-apps/api/event';
+ * import type { StationInfo } from '../types/capture';
+ *
+ * const unlisten = await listen<StationInfo>('station-info', (event) => {
+ *   const station = event.payload;
+ *   console.log(`${station.mac} → ${station.associated_bssid ?? 'unassociated'}`);
+ * });
+ * ```
+ */
+export interface StationInfo {
+    /** Client device MAC address (e.g. "AA:BB:CC:DD:EE:FF") */
+    mac: string;
+
+    /** Associated AP BSSID, or null if the station is not associated */
+    associated_bssid: string | null;
+
+    /** Signal strength in dBm (e.g. -65). Range: -100 to -20 */
+    rssi: number;
+
+    /** Number of packets captured from this station */
+    packet_count: number;
+
+    /** List of SSIDs this station has probed for */
+    probed_ssids: string[];
+
+    /** Vendor name from OUI lookup, or null if not yet resolved */
+    vendor: string | null;
+
+    /** Unix timestamp in milliseconds when this station was last seen */
+    timestamp_ms: number;
+}
+
+/**
  * Error payload returned by Tauri commands on failure.
  */
 export interface AetherError {
