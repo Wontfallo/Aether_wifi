@@ -4,6 +4,7 @@
 //! and interaction with the Linux wireless stack.
 
 pub mod ap_manager;
+pub mod advanced_attacks;
 pub mod attack_engine;
 pub mod audit;
 pub mod interface_scanner;

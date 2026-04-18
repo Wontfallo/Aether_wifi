@@ -38,7 +38,7 @@ mod commands;
 pub mod error;
 pub mod network;
 
-use commands::{attack_commands, audit_commands, capture_commands, network_commands, scanner_commands, sniffer_commands, utility_commands};
+use commands::{advanced_attack_commands, attack_commands, audit_commands, capture_commands, network_commands, scanner_commands, sniffer_commands, utility_commands};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -63,6 +63,8 @@ pub fn run() {
         .manage(sniffer_commands::SnifferState(std::sync::Mutex::new(None)))
         // Managed state: tracks the active mdk4 attack
         .manage(attack_commands::AttackState(std::sync::Mutex::new(None)))
+        // Managed state: tracks the active advanced attack
+        .manage(advanced_attack_commands::AdvancedAttackState(std::sync::Mutex::new(None)))
         // Managed state: tracks the bettercap daemon
         .manage(attack_commands::BettercapState(std::sync::Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
@@ -114,6 +116,13 @@ pub fn run() {
             utility_commands::select_target_aps,
             utility_commands::get_selected_aps,
             utility_commands::clear_saved_aps,
+            // Advanced attacks (CSA, sleep, quiet, bad message, SAE flood)
+            advanced_attack_commands::start_channel_switch,
+            advanced_attack_commands::start_sleep_attack,
+            advanced_attack_commands::start_quiet_time,
+            advanced_attack_commands::start_bad_message,
+            advanced_attack_commands::start_sae_flood,
+            advanced_attack_commands::stop_advanced_attack,
             // Network scanner (ping, ARP, port, SSH, telnet)
             scanner_commands::ping_scan,
             scanner_commands::arp_scan,
