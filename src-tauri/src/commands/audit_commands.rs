@@ -54,10 +54,10 @@ pub struct CaptureOperationStatus {
 // ─────────────────────────────────────────────────
 
 /// Managed Tauri state for the EAPOL handshake capture session.
-pub struct EapolCaptureState(pub Mutex<Option<Arc<AtomicBool>>>);
+pub struct EapolCaptureState(pub Arc<Mutex<Option<Arc<AtomicBool>>>>);
 
 /// Managed Tauri state for active deauth operations.
-pub struct DeauthState(pub Mutex<Option<Arc<AtomicBool>>>);
+pub struct DeauthState(pub Arc<Mutex<Option<Arc<AtomicBool>>>>);
 
 // ─────────────────────────────────────────────────
 // Commands
@@ -132,6 +132,9 @@ pub fn start_deauth(
     let bssid_clone = bssid.clone();
     let handle = app_handle.clone();
 
+    // Clone state Arc so the thread can clear it when done
+    let state_arc = Arc::clone(&state.0);
+
     // Spawn the deauth in a background thread
     std::thread::spawn(move || {
         let mut packets_sent: u32 = 0;
@@ -164,6 +167,10 @@ pub fn start_deauth(
                         packets_total: Some(send_count),
                     },
                 );
+                // Clear state before returning
+                if let Ok(mut guard) = state_arc.lock() {
+                    *guard = None;
+                }
                 return;
             }
 
@@ -200,6 +207,10 @@ pub fn start_deauth(
                             packets_total: Some(send_count),
                         },
                     );
+                    // Clear state before returning
+                    if let Ok(mut guard) = state_arc.lock() {
+                        *guard = None;
+                    }
                     return;
                 }
             }
@@ -224,6 +235,11 @@ pub fn start_deauth(
                 packets_total: Some(send_count),
             },
         );
+
+        // Clear state so a new attack can be started
+        if let Ok(mut guard) = state_arc.lock() {
+            *guard = None;
+        }
     });
 
     *guard = Some(stop_flag);
@@ -321,6 +337,9 @@ pub fn start_eapol_capture(
     // Emit status events to the frontend
     let handle = app_handle.clone();
 
+    // Clone the state Arc so the thread can clear it when done
+    let state_arc = Arc::clone(&state.0);
+
     // Spawn the capture in a background thread
     std::thread::spawn(move || {
         // Emit "started" event
@@ -360,6 +379,11 @@ pub fn start_eapol_capture(
                     },
                 );
             }
+        }
+
+        // Clear the state so a new capture can be started
+        if let Ok(mut guard) = state_arc.lock() {
+            *guard = None;
         }
     });
 
@@ -465,6 +489,10 @@ pub fn one_click_capture(
     let bssid_clone = bssid.clone();
     let handle = app_handle.clone();
 
+    // Clone state Arcs so the thread can clear them when done
+    let eapol_state_arc = Arc::clone(&state.0);
+    let deauth_state_arc = Arc::clone(&deauth_state.0);
+
     std::thread::spawn(move || {
         // Phase 1: Start EAPOL listener first (so we don't miss the handshake)
         let _ = handle.emit(
@@ -507,6 +535,9 @@ pub fn one_click_capture(
                         packets_total: Some(count),
                     },
                 );
+                // Clear state before returning
+                if let Ok(mut guard) = eapol_state_arc.lock() { *guard = None; }
+                if let Ok(mut guard) = deauth_state_arc.lock() { *guard = None; }
                 return;
             }
 
@@ -521,6 +552,9 @@ pub fn one_click_capture(
                         packets_total: Some(count),
                     },
                 );
+                // Clear state before returning
+                if let Ok(mut guard) = eapol_state_arc.lock() { *guard = None; }
+                if let Ok(mut guard) = deauth_state_arc.lock() { *guard = None; }
                 return;
             }
 
@@ -581,6 +615,14 @@ pub fn one_click_capture(
                     },
                 );
             }
+        }
+
+        // Clear state so new captures can be started
+        if let Ok(mut guard) = eapol_state_arc.lock() {
+            *guard = None;
+        }
+        if let Ok(mut guard) = deauth_state_arc.lock() {
+            *guard = None;
         }
     });
 

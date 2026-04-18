@@ -54,11 +54,11 @@ pub fn run() {
         // Managed state: tracks the active packet capture session
         .manage(capture_commands::CaptureState(std::sync::Mutex::new(None)))
         // Managed state: tracks the active EAPOL handshake capture
-        .manage(audit_commands::EapolCaptureState(std::sync::Mutex::new(
+        .manage(audit_commands::EapolCaptureState(std::sync::Arc::new(std::sync::Mutex::new(
             None,
-        )))
+        ))))
         // Managed state: tracks the active deauth attack
-        .manage(audit_commands::DeauthState(std::sync::Mutex::new(None)))
+        .manage(audit_commands::DeauthState(std::sync::Arc::new(std::sync::Mutex::new(None))))
         .invoke_handler(tauri::generate_handler![
             // Network interface management
             network_commands::list_interfaces,
