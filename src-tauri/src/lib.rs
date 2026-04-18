@@ -38,7 +38,7 @@ mod commands;
 pub mod error;
 pub mod network;
 
-use commands::{attack_commands, audit_commands, capture_commands, network_commands, sniffer_commands};
+use commands::{attack_commands, audit_commands, capture_commands, network_commands, scanner_commands, sniffer_commands, utility_commands};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -97,6 +97,23 @@ pub fn run() {
             attack_commands::start_evil_portal,
             attack_commands::start_karma_attack,
             attack_commands::bettercap_command,
+            // Utility commands (MAC spoof, SSID manager, WiFi join)
+            utility_commands::spoof_mac,
+            utility_commands::restore_mac,
+            utility_commands::list_ssid_lists,
+            utility_commands::get_ssid_list,
+            utility_commands::save_ssid_list,
+            utility_commands::delete_ssid_list,
+            utility_commands::add_ssids_to_list,
+            utility_commands::generate_random_ssids,
+            utility_commands::join_wifi,
+            utility_commands::disconnect_wifi,
+            // Network scanner (ping, ARP, port, SSH, telnet)
+            scanner_commands::ping_scan,
+            scanner_commands::arp_scan,
+            scanner_commands::port_scan,
+            scanner_commands::ssh_scan,
+            scanner_commands::telnet_scan,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Aether application");

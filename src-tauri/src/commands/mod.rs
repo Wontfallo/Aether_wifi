@@ -7,4 +7,6 @@ pub mod attack_commands;
 pub mod audit_commands;
 pub mod capture_commands;
 pub mod network_commands;
+pub mod scanner_commands;
 pub mod sniffer_commands;
+pub mod utility_commands;

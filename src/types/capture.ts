@@ -238,3 +238,84 @@ export interface InterfaceModeResult {
     success: boolean;
     message: string;
 }
+
+// ─────────────────────────────────────────────────
+// Network Scanner Types
+// ─────────────────────────────────────────────────
+
+/**
+ * Host discovered via ping or ARP scan.
+ * Returned by `invoke('ping_scan')` and `invoke('arp_scan')`.
+ */
+export interface HostInfo {
+    /** IP address of the discovered host */
+    ip: string;
+    /** MAC address (available from ARP scans) */
+    mac: string | null;
+    /** Resolved hostname, or null */
+    hostname: string | null;
+    /** Hardware vendor from OUI lookup */
+    vendor: string | null;
+    /** Whether the host responded */
+    is_up: boolean;
+    /** Unix timestamp in milliseconds */
+    timestamp_ms: number;
+}
+
+/**
+ * Result of a port scan on a single port.
+ * Returned by `invoke('port_scan')`.
+ */
+export interface PortResult {
+    /** Target host IP */
+    host: string;
+    /** Port number */
+    port: number;
+    /** Protocol (tcp/udp) */
+    protocol: string;
+    /** Port state: open, closed, or filtered */
+    state: string;
+    /** Detected service name, or null */
+    service: string | null;
+    /** Detected service version, or null */
+    version: string | null;
+}
+
+/**
+ * A discovered network service (SSH, Telnet, etc.).
+ * Returned by `invoke('ssh_scan')` and `invoke('telnet_scan')`.
+ */
+export interface ServiceInfo {
+    /** Host IP address */
+    host: string;
+    /** Service port number */
+    port: number;
+    /** Service name (e.g. "ssh", "telnet") */
+    service: string;
+    /** Service version string, or null */
+    version: string | null;
+    /** Host MAC address, or null */
+    mac: string | null;
+    /** Hardware vendor, or null */
+    vendor: string | null;
+}
+
+/**
+ * Result of a MAC address spoof/restore operation.
+ */
+export interface MacSpoofResult {
+    interface_name: string;
+    original_mac: string;
+    new_mac: string;
+    vendor: string | null;
+    success: boolean;
+    message: string;
+}
+
+/**
+ * A named SSID list used by beacon spam, evil portal, etc.
+ */
+export interface SsidList {
+    name: string;
+    ssids: string[];
+}
