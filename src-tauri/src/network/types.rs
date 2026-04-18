@@ -136,6 +136,34 @@ pub struct BeaconFrame {
     pub timestamp_ms: u64,
 }
 
+/// A discovered WiFi client station (from airodump-ng station section).
+///
+/// Emitted via Tauri event `"station-info"` each time the sniffer
+/// discovers a client device during an airodump-ng capture.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StationInfo {
+    /// Client device MAC address (e.g. "AA:BB:CC:DD:EE:FF").
+    pub mac: String,
+
+    /// Associated AP BSSID (`None` if not associated to any AP).
+    pub associated_bssid: Option<String>,
+
+    /// Signal strength in dBm (e.g. −65).
+    pub rssi: i8,
+
+    /// Number of packets captured from this station.
+    pub packet_count: u32,
+
+    /// List of SSIDs this station has probed for.
+    pub probed_ssids: Vec<String>,
+
+    /// Vendor name from OUI lookup (filled in later when OUI module is ready).
+    pub vendor: Option<String>,
+
+    /// Unix timestamp (milliseconds) when this station was last seen.
+    pub timestamp_ms: u64,
+}
+
 /// Status payload returned by start/stop capture commands.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CaptureStatus {

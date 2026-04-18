@@ -12,4 +12,4 @@ pub mod types;
 pub use interface_scanner::InterfaceScanner;
 pub use mode_controller::ModeController;
 pub use packet_sniffer::CaptureHandle;
-pub use types::{BeaconFrame, CaptureStatus, InterfaceMode, InterfaceModeResult, NetworkInterface};
+pub use types::{BeaconFrame, CaptureStatus, InterfaceMode, InterfaceModeResult, NetworkInterface, StationInfo};
