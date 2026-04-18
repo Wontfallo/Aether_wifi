@@ -183,7 +183,8 @@ npm install
 npm run dev
 
 # 🖥️ Run with Tauri (full app with Rust backend)
-cargo tauri dev
+# Linux WiFi capture uses the launcher to enter monitor mode and start the backend with sudo.
+npm run tauri dev
 
 # 🏗️ Build for production
 cargo tauri build

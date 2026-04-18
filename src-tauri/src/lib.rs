@@ -64,6 +64,7 @@ pub fn run() {
             network_commands::list_interfaces,
             network_commands::list_wireless_interfaces,
             network_commands::get_interface,
+            network_commands::get_monitor_interface,
             network_commands::toggle_interface_mode,
             network_commands::set_interface_mode,
             // Packet capture

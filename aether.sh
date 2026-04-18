@@ -21,6 +21,7 @@ RESTORE_MANAGED="${AETHER_RESTORE_MANAGED:-1}"
 NEEDS_CLEANUP=0
 NETWORKMANAGER_WAS_ACTIVE=0
 WPASUPPLICANT_WAS_ACTIVE=0
+INITIAL_CHANNEL=""
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -41,12 +42,18 @@ restore_interface_state() {
     echo -e ""
     echo -e "${YELLOW}[cleanup]${NC} Restoring ${IFACE} to managed mode..."
 
-    sudo ip link set "$IFACE" down &>/dev/null || true
-    sudo iw "$IFACE" set type managed &>/dev/null || true
-    sudo ip link set "$IFACE" up &>/dev/null || true
+    if command -v airmon-ng &>/dev/null; then
+        sudo airmon-ng stop "$IFACE" &>/dev/null || true
+    else
+        sudo ip link set "$IFACE" down &>/dev/null || true
+        sudo iw "$IFACE" set type managed &>/dev/null || true
+        sudo ip link set "$IFACE" up &>/dev/null || true
+    fi
 
     if command -v nmcli &>/dev/null; then
-        sudo nmcli device set "$IFACE" managed yes &>/dev/null || true
+        # IFACE might be wlan0mon, restore base name
+        local BASE_IFACE="${IFACE%mon}"
+        sudo nmcli device set "$BASE_IFACE" managed yes &>/dev/null || true
     fi
 
     if command -v systemctl &>/dev/null; then
@@ -59,7 +66,7 @@ restore_interface_state() {
         fi
     fi
 
-    echo -e "  ${GREEN}✓${NC} ${IFACE} restored to managed mode"
+    echo -e "  ${GREEN}✓${NC} Restored to managed mode"
 }
 
 trap restore_interface_state EXIT INT TERM
@@ -90,6 +97,8 @@ if service_is_active wpa_supplicant; then
     WPASUPPLICANT_WAS_ACTIVE=1
 fi
 
+INITIAL_CHANNEL="$(iw dev "$IFACE" info 2>/dev/null | awk '/channel / { print $2; exit }')"
+
 # ── 2. Check WiFi adapter ──
 echo -e "${YELLOW}[1/4]${NC} Checking WiFi adapter (${IFACE})..."
 if ! ip link show "$IFACE" &>/dev/null; then
@@ -110,23 +119,45 @@ fi
 echo -e "  ${GREEN}✓${NC} Found $IFACE"
 NEEDS_CLEANUP=1
 
-# ── 3. Set monitor mode if needed ──
-echo -e "${YELLOW}[2/4]${NC} Ensuring monitor mode..."
-CURRENT_MODE=$(iw dev "$IFACE" info 2>/dev/null | grep type | awk '{print $2}')
-if [ "$CURRENT_MODE" = "monitor" ]; then
-    echo -e "  ${GREEN}✓${NC} Already in monitor mode"
+# ── 3. Kill interfering services & activate monitor mode ──
+echo -e "${YELLOW}[2/4]${NC} Ensuring clean monitor mode..."
+
+# Set regulatory domain for proper txpower
+sudo iw reg set US &>/dev/null || true
+
+echo -e "  Stopping interfering services..."
+if command -v airmon-ng &>/dev/null; then
+    sudo airmon-ng check kill &>/dev/null || true
 else
-    echo -e "  Setting $IFACE to monitor mode (requires sudo)..."
+    sudo systemctl stop NetworkManager &>/dev/null || true
+    sudo systemctl stop wpa_supplicant &>/dev/null || true
+fi
+if command -v nmcli &>/dev/null; then
+    sudo nmcli device set "$IFACE" managed no &>/dev/null || true
+fi
+
+# Use airmon-ng for monitor mode (handles driver quirks better than iw)
+if command -v airmon-ng &>/dev/null; then
+    sudo airmon-ng stop "$IFACE" &>/dev/null || true
+    sleep 0.5
+    sudo airmon-ng start "$IFACE" &>/dev/null || true
+    # Detect if interface was renamed (e.g. wlan0 -> wlan0mon)
+    if ip link show "${IFACE}mon" &>/dev/null 2>&1; then
+        IFACE="${IFACE}mon"
+        echo -e "  Interface renamed to ${IFACE}"
+    fi
+else
     sudo ip link set "$IFACE" down
     sudo iw "$IFACE" set type monitor
     sudo ip link set "$IFACE" up
-    echo -e "  ${GREEN}✓${NC} Monitor mode activated"
 fi
+echo -e "  ${GREEN}✓${NC} Monitor mode activated on ${IFACE} (services killed)"
 
-# ── 4. Set channel 6 (busy 2.4GHz channel for best beacon coverage) ──
-echo -e "${YELLOW}[3/4]${NC} Setting channel 6 (2.4 GHz)..."
-sudo iw dev "$IFACE" set channel 6 2>/dev/null || true
-echo -e "  ${GREEN}✓${NC} Channel 6 (2437 MHz)"
+# ── 4. Set a sensible initial channel ──
+TARGET_CHANNEL="${INITIAL_CHANNEL:-6}"
+echo -e "${YELLOW}[3/4]${NC} Setting initial channel ${TARGET_CHANNEL}..."
+sudo iw dev "$IFACE" set channel "$TARGET_CHANNEL" 2>/dev/null || true
+echo -e "  ${GREEN}✓${NC} Channel ${TARGET_CHANNEL}"
 
 # ── 5. Allow X11 access for root & launch ──
 echo -e "${YELLOW}[4/4]${NC} Launching Aether..."
@@ -144,6 +175,19 @@ echo -e "  ${GREEN}  Close the window to stop.            ${NC}"
 echo -e "  ${GREEN}══════════════════════════════════════${NC}"
 echo ""
 
+TAURI_BIN="$PROJECT_DIR/node_modules/.bin/tauri"
+CARGO_BIN_DIR="$HOME/.cargo/bin"
+if [ ! -x "$TAURI_BIN" ]; then
+    echo -e "${RED}[ERROR] Tauri CLI not found at ${TAURI_BIN}.${NC}"
+    echo "  Run 'npm install' in $PROJECT_DIR first."
+    exit 1
+fi
+
 # Launch Tauri dev (with sudo for pcap access)
 WEBKIT_DISABLE_COMPOSITING_MODE=1 \
-    sudo -E "$(which cargo)" tauri dev 2>&1
+    sudo -E env \
+        "PATH=$CARGO_BIN_DIR:$PATH" \
+        "CARGO_HOME=$HOME/.cargo" \
+        "RUSTUP_HOME=$HOME/.rustup" \
+        "AETHER_MONITOR_IFACE=$IFACE" \
+        "$TAURI_BIN" dev 2>&1

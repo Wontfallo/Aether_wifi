@@ -40,7 +40,10 @@
 
 use byteorder::{LittleEndian, ReadBytesExt};
 use log::{debug, error, info, trace, warn};
+use std::fs;
 use std::io::Cursor;
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -152,6 +155,15 @@ pub fn start_capture<F>(
 where
     F: Fn(BeaconFrame) + Send + 'static,
 {
+    #[cfg(target_os = "linux")]
+    if command_exists("airodump-ng") {
+        info!(
+            "Using airodump-ng capture backend on '{}'",
+            interface_name
+        );
+        return start_airodump_capture(interface_name, on_beacon);
+    }
+
     info!("Opening pcap capture on interface '{}'...", interface_name);
 
     // Open the interface in monitor mode with pcap.
@@ -188,13 +200,9 @@ where
                      (interface may already be in monitor mode).",
                     interface_name, rfmon_err
                 );
-                make_inactive()?.open().map_err(|e| {
-                    crate::error::AetherError::CaptureError(format!(
-                        "Failed to activate capture on '{}': {}. \
-                         Ensure the interface is in monitor mode and you have root/sudo privileges.",
-                        interface_name, e
-                    ))
-                })?
+                make_inactive()?
+                    .open()
+                    .map_err(|e| map_capture_activation_error(interface_name, &e.to_string()))?
             }
         }
     };
@@ -246,31 +254,54 @@ where
     let hopper_thread = std::thread::Builder::new()
         .name(format!("aether-hopper-{}", interface_name))
         .spawn(move || {
-            // A comprehensive mix of 2.4GHz and 5GHz channels
-            let channels = [1, 6, 11, 36, 40, 44, 48, 149, 153, 157, 161];
+            // Prioritize the common non-DFS channels and dwell long enough for
+            // this adapter/driver combo to settle and receive beacon intervals.
+            let channels = [1, 6, 11, 149, 153, 157, 161, 36, 40, 44, 48];
             let mut idx = 0;
+
+            info!(
+                "Channel hopper started on '{}'. Sweep: {:?}",
+                iface_name2, channels
+            );
 
             while !stop_clone2.load(Ordering::Relaxed) {
                 let channel = channels[idx];
-                // Non-blocking channel hop — suppress stdout/stderr
-                let _ = std::process::Command::new("iw")
+                let output = std::process::Command::new("iw")
                     .arg("dev")
                     .arg(&iface_name2)
                     .arg("set")
                     .arg("channel")
                     .arg(channel.to_string())
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null())
                     .output();
+
+                match output {
+                    Ok(result) if result.status.success() => {
+                        trace!("Hopped '{}' to channel {}", iface_name2, channel);
+                    }
+                    Ok(result) => {
+                        warn!(
+                            "Failed to hop '{}' to channel {}: {}",
+                            iface_name2,
+                            channel,
+                            String::from_utf8_lossy(&result.stderr).trim()
+                        );
+                    }
+                    Err(err) => {
+                        warn!(
+                            "Failed to execute channel hop on '{}' to {}: {}",
+                            iface_name2, channel, err
+                        );
+                    }
+                }
 
                 idx = (idx + 1) % channels.len();
 
-                // Wait ~200ms on each channel, but check stop flag every 50ms
-                for _ in 0..4 {
+                // Wait ~1000ms on each channel, but check stop flag every 100ms.
+                for _ in 0..10 {
                     if stop_clone2.load(Ordering::Relaxed) {
                         break;
                     }
-                    std::thread::sleep(std::time::Duration::from_millis(50));
+                    std::thread::sleep(std::time::Duration::from_millis(100));
                 }
             }
         })
@@ -281,6 +312,224 @@ where
         thread: Some(thread),
         hopper_thread,
     })
+}
+
+#[cfg(target_os = "linux")]
+fn start_airodump_capture<F>(
+    interface_name: &str,
+    on_beacon: F,
+) -> Result<CaptureHandle, crate::error::AetherError>
+where
+    F: Fn(BeaconFrame) + Send + 'static,
+{
+    let stop_flag = Arc::new(AtomicBool::new(false));
+    let stop_clone = stop_flag.clone();
+    let iface_name = interface_name.to_string();
+    let output_prefix = format!(
+        "/tmp/aether-airodump-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis()
+    );
+
+    let thread = std::thread::Builder::new()
+        .name(format!("aether-airodump-{}", interface_name))
+        .spawn(move || {
+            airodump_capture_loop(&iface_name, &output_prefix, stop_clone, on_beacon);
+        })
+        .map_err(|e| crate::error::AetherError::CaptureError(format!(
+            "Failed to spawn airodump capture thread: {}",
+            e
+        )))?;
+
+    Ok(CaptureHandle {
+        stop_flag,
+        thread: Some(thread),
+        hopper_thread: None,
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn airodump_capture_loop<F>(
+    interface_name: &str,
+    output_prefix: &str,
+    stop_flag: Arc<AtomicBool>,
+    on_beacon: F,
+) where
+    F: Fn(BeaconFrame),
+{
+    info!(
+        "Starting airodump-ng capture loop on '{}' with prefix '{}'",
+        interface_name, output_prefix
+    );
+
+    let mut child = match spawn_airodump(interface_name, output_prefix) {
+        Ok(child) => child,
+        Err(err) => {
+            error!("Failed to start airodump-ng on '{}': {}", interface_name, err);
+            return;
+        }
+    };
+
+    let csv_path = PathBuf::from(format!("{}-01.csv", output_prefix));
+    let mut last_snapshot = String::new();
+
+    while !stop_flag.load(Ordering::Relaxed) {
+        if let Some(status) = child.try_wait().ok().flatten() {
+            warn!("airodump-ng exited early on '{}': {}", interface_name, status);
+            break;
+        }
+
+        if let Ok(contents) = fs::read_to_string(&csv_path) {
+            if contents != last_snapshot {
+                last_snapshot = contents.clone();
+                let beacons = parse_airodump_csv(&contents);
+                if !beacons.is_empty() {
+                    info!("airodump-ng parsed {} beacons from CSV", beacons.len());
+                }
+                for beacon in beacons {
+                    on_beacon(beacon);
+                }
+            }
+        }
+
+        std::thread::sleep(std::time::Duration::from_millis(1000));
+    }
+
+    let _ = child.kill();
+    let _ = child.wait();
+    cleanup_airodump_outputs(output_prefix);
+    info!("airodump-ng capture loop ended on '{}'", interface_name);
+}
+
+#[cfg(target_os = "linux")]
+fn spawn_airodump(interface_name: &str, output_prefix: &str) -> crate::error::AetherResult<Child> {
+    Command::new("airodump-ng")
+        .arg("--band")
+        .arg("abg")
+        .arg("--write-interval")
+        .arg("1")
+        .arg("--output-format")
+        .arg("csv")
+        .arg("--write")
+        .arg(output_prefix)
+        .arg(interface_name)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| crate::error::AetherError::CaptureError(format!(
+            "Failed to spawn airodump-ng: {}",
+            e
+        )))
+}
+
+#[cfg(target_os = "linux")]
+fn cleanup_airodump_outputs(output_prefix: &str) {
+    for suffix in ["-01.csv", "-01.cap", "-01.kismet.csv", "-01.kismet.netxml", "-01.log.csv"] {
+        let path = format!("{}{}", output_prefix, suffix);
+        if let Err(err) = fs::remove_file(&path) {
+            if err.kind() != std::io::ErrorKind::NotFound {
+                debug!("Failed to remove '{}': {}", path, err);
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn parse_airodump_csv(contents: &str) -> Vec<BeaconFrame> {
+    let mut beacons = Vec::new();
+    let mut in_station_section = false;
+
+    for line in contents.lines() {
+        let trimmed = line.trim();
+
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        if trimmed.starts_with("Station MAC") {
+            in_station_section = true;
+            continue;
+        }
+
+        if in_station_section || trimmed.starts_with("BSSID, First time seen") {
+            continue;
+        }
+
+        let columns: Vec<&str> = line.split(',').map(|part| part.trim()).collect();
+        if columns.len() < 14 {
+            continue;
+        }
+
+        let bssid = columns[0];
+        if !looks_like_bssid(bssid) {
+            continue;
+        }
+
+        let channel = match columns[3].parse::<u8>() {
+            Ok(channel) => channel,
+            Err(_) => continue,
+        };
+
+        let rssi = columns[8].parse::<i8>().unwrap_or(-100);
+        let ssid = columns[13..].join(",").trim().to_string();
+
+        beacons.push(BeaconFrame {
+            bssid: bssid.to_ascii_uppercase(),
+            ssid,
+            channel,
+            rssi,
+            frequency_mhz: channel_to_freq(channel),
+            timestamp_ms: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64,
+        });
+    }
+
+    beacons
+}
+
+#[cfg(target_os = "linux")]
+fn looks_like_bssid(value: &str) -> bool {
+    value.len() == 17 && value.chars().enumerate().all(|(idx, ch)| match idx % 3 {
+        2 => ch == ':',
+        _ => ch.is_ascii_hexdigit(),
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn command_exists(command: &str) -> bool {
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    std::env::split_paths(&path).any(|entry| Path::new(&entry).join(command).exists())
+}
+
+fn map_capture_activation_error(
+    interface_name: &str,
+    detail: &str,
+) -> crate::error::AetherError {
+    let lowered = detail.to_ascii_lowercase();
+    let needs_privileges = lowered.contains("cap_net_raw")
+        || lowered.contains("permission denied")
+        || lowered.contains("operation not permitted")
+        || lowered.contains("packet socket failed");
+
+    if needs_privileges {
+        return crate::error::AetherError::PermissionDenied(format!(
+            "Packet capture on '{}' requires CAP_NET_RAW/CAP_NET_ADMIN. \
+             Launch Aether through the Linux launcher (`bash ./aether.sh` or `npm run tauri dev`) \
+             so the backend starts with the privileges libpcap needs.",
+            interface_name
+        ));
+    }
+
+    crate::error::AetherError::CaptureError(format!(
+        "Failed to activate capture on '{}': {}. \
+         Ensure the interface is in monitor mode and you have root/sudo privileges.",
+        interface_name, detail
+    ))
 }
 
 // ─────────────────────────────────────────────────
