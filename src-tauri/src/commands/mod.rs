@@ -4,6 +4,7 @@
 //! registered here and delegate to the business logic modules.
 
 pub mod advanced_attack_commands;
+pub mod advanced_sniffer_commands;
 pub mod attack_commands;
 pub mod audit_commands;
 pub mod capture_commands;

@@ -5,6 +5,7 @@
 
 pub mod ap_manager;
 pub mod advanced_attacks;
+pub mod advanced_sniffer;
 pub mod attack_engine;
 pub mod audit;
 pub mod interface_scanner;
