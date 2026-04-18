@@ -320,6 +320,138 @@ export interface SsidList {
     ssids: string[];
 }
 
+// ─────────────────────────────────────────────────
+// Advanced Sniffer Types
+// ─────────────────────────────────────────────────
+
+/**
+ * Per-channel frame statistics emitted by the packet monitor.
+ * Received via Tauri event `"packet-stats"`.
+ */
+export interface PacketStats {
+    /** WiFi channel */
+    channel: number;
+    /** Total frames counted in this interval */
+    total_frames: number;
+    /** Management frames (beacons, probes, auth, deauth, etc.) */
+    management_frames: number;
+    /** Control frames (ACK, RTS, CTS, etc.) */
+    control_frames: number;
+    /** Data frames */
+    data_frames: number;
+    /** Frames per second */
+    frames_per_second: number;
+    /** Unix timestamp in milliseconds */
+    timestamp_ms: number;
+}
+
+/**
+ * A raw 802.11 frame captured in monitor mode.
+ * Received via Tauri event `"raw-frame"`.
+ */
+export interface RawFrame {
+    /** Frame type: "management", "control", "data", or "unknown" */
+    frame_type: string;
+    /** Frame subtype (e.g. "beacon", "probe_request", "ack", "qos_data") */
+    subtype: string;
+    /** Address 1 (typically receiver/destination) */
+    addr1: string | null;
+    /** Address 2 (typically transmitter/source) */
+    addr2: string | null;
+    /** Address 3 (typically BSSID) */
+    addr3: string | null;
+    /** Total frame size in bytes */
+    size: number;
+    /** Signal strength in dBm, or null */
+    rssi: number | null;
+    /** Channel number, or null */
+    channel: number | null;
+    /** Unix timestamp in milliseconds */
+    timestamp_ms: number;
+}
+
+/**
+ * A captured PMKID from an EAPOL handshake message 1.
+ * Received via Tauri event `"pmkid-capture"`.
+ */
+export interface PmkidCapture {
+    /** Access point BSSID */
+    bssid: string;
+    /** Client MAC address */
+    client_mac: string;
+    /** PMKID hex string (32 hex chars) */
+    pmkid: string;
+    /** Network SSID */
+    ssid: string;
+    /** hashcat -m 22000 formatted line */
+    hashcat_line: string;
+    /** Unix timestamp in milliseconds */
+    timestamp_ms: number;
+}
+
+/**
+ * Detected pwnagotchi device information.
+ * Received via Tauri event `"pwnagotchi-detected"`.
+ */
+export interface PwnagotchiInfo {
+    /** Pwnagotchi identity/name */
+    name: string;
+    /** Firmware version */
+    version: string;
+    /** Device uptime in seconds */
+    uptime: number;
+    /** Training epoch */
+    epoch: number;
+    /** BSSID of the pwnagotchi beacon */
+    bssid: string;
+    /** Channel, or null */
+    channel: number | null;
+    /** Signal strength in dBm, or null */
+    rssi: number | null;
+    /** Unix timestamp in milliseconds */
+    timestamp_ms: number;
+}
+
+/**
+ * A captured SAE (WPA3) authentication frame.
+ * Received via Tauri event `"sae-frame"`.
+ */
+export interface SaeFrame {
+    /** Source MAC */
+    source: string;
+    /** Destination MAC */
+    destination: string;
+    /** BSSID */
+    bssid: string;
+    /** SAE sequence number */
+    seq_num: number;
+    /** Whether this is a commit message (seq=1) */
+    is_commit: boolean;
+    /** Whether this is a confirm message (seq=2) */
+    is_confirm: boolean;
+    /** Unix timestamp in milliseconds */
+    timestamp_ms: number;
+}
+
+/**
+ * A MAC address tracking entry showing where a target MAC was seen.
+ * Received via Tauri event `"mac-track"`.
+ */
+export interface MacTrackEntry {
+    /** The tracked MAC address */
+    mac: string;
+    /** Signal strength in dBm, or null */
+    rssi: number | null;
+    /** Channel number, or null */
+    channel: number | null;
+    /** Frame type the MAC was seen in */
+    frame_type: string;
+    /** Role of the MAC in the frame: "source", "destination", or "bssid" */
+    role: string;
+    /** Unix timestamp in milliseconds */
+    timestamp_ms: number;
+}
+
 /**
  * A saved access point with all known metadata.
  */

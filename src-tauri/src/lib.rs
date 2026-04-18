@@ -38,7 +38,7 @@ mod commands;
 pub mod error;
 pub mod network;
 
-use commands::{advanced_attack_commands, attack_commands, audit_commands, capture_commands, network_commands, scanner_commands, sniffer_commands, utility_commands};
+use commands::{advanced_attack_commands, advanced_sniffer_commands, attack_commands, audit_commands, capture_commands, network_commands, scanner_commands, sniffer_commands, utility_commands};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -61,6 +61,10 @@ pub fn run() {
         .manage(audit_commands::DeauthState(std::sync::Arc::new(std::sync::Mutex::new(None))))
         // Managed state: tracks the active frame sniffer (probe/deauth detection)
         .manage(sniffer_commands::SnifferState(std::sync::Mutex::new(None)))
+        // Managed state: tracks all advanced sniffer features
+        .manage(advanced_sniffer_commands::AdvancedSnifferState(std::sync::Mutex::new(
+            std::collections::HashMap::new(),
+        )))
         // Managed state: tracks the active mdk4 attack
         .manage(attack_commands::AttackState(std::sync::Mutex::new(None)))
         // Managed state: tracks the active advanced attack
@@ -123,6 +127,19 @@ pub fn run() {
             advanced_attack_commands::start_bad_message,
             advanced_attack_commands::start_sae_flood,
             advanced_attack_commands::stop_advanced_attack,
+            // Advanced sniffer features
+            advanced_sniffer_commands::start_packet_monitor,
+            advanced_sniffer_commands::stop_packet_monitor,
+            advanced_sniffer_commands::start_raw_capture,
+            advanced_sniffer_commands::stop_raw_capture,
+            advanced_sniffer_commands::start_pmkid_capture,
+            advanced_sniffer_commands::stop_pmkid_capture,
+            advanced_sniffer_commands::detect_pwnagotchi,
+            advanced_sniffer_commands::stop_pwnagotchi_detect,
+            advanced_sniffer_commands::start_sae_sniff,
+            advanced_sniffer_commands::stop_sae_sniff,
+            advanced_sniffer_commands::start_mac_track,
+            advanced_sniffer_commands::stop_mac_track,
             // Network scanner (ping, ARP, port, SSH, telnet)
             scanner_commands::ping_scan,
             scanner_commands::arp_scan,
