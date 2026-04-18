@@ -1,19 +1,34 @@
 import { Wifi, Play, Square, ArrowUpDown } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useBeaconCapture } from "../hooks/useBeaconCapture";
 
 export function Dashboard() {
     const { beacons, isCapturing, startCapture, stopCapture, error } = useBeaconCapture();
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+    const [monitorIface, setMonitorIface] = useState('wlan0');
+    const autoStartAttemptedRef = useRef(false);
 
-    // Automatically start capture on wlan0 for demo purposes if not already, or provide a UI.
-    // Assuming user wants to manually start or we can add a button.
+    useEffect(() => {
+        invoke<string>('get_monitor_interface').then((iface) => {
+            setMonitorIface(iface);
+        }).catch(() => {});
+    }, []);
+
+    useEffect(() => {
+        if (autoStartAttemptedRef.current || isCapturing || error) {
+            return;
+        }
+
+        autoStartAttemptedRef.current = true;
+        void startCapture(monitorIface);
+    }, [error, isCapturing, monitorIface, startCapture]);
+
     const handleToggleCapture = () => {
         if (isCapturing) {
             stopCapture();
         } else {
-            // Default to wlan0 or wlan0. Let's use 'wlan0' as standard monitor mode interface.
-            startCapture('wlan0');
+            startCapture(monitorIface);
         }
     };
 
@@ -37,7 +52,7 @@ export function Dashboard() {
                         <Wifi className="w-8 h-8 text-primary" />
                         <span className="text-glow">AETHER</span> <span className="opacity-50 text-muted-foreground font-sans text-2xl font-normal">// DASHBOARD</span>
                     </h1>
-                    <p className="text-muted-foreground mt-2 font-mono text-sm uppercase tracking-wider">Active Monitoring: Interface wlan0 (Monitor Mode)</p>
+                    <p className="text-muted-foreground mt-2 font-mono text-sm uppercase tracking-wider">Active Monitoring: Interface {monitorIface} (Monitor Mode)</p>
                 </div>
 
                 <button

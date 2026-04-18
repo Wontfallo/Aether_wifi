@@ -7,6 +7,16 @@
 use crate::error::AetherError;
 use crate::network::{InterfaceMode, InterfaceModeResult, InterfaceScanner, ModeController, NetworkInterface};
 
+/// Return the monitor-mode interface name.
+///
+/// Reads `AETHER_MONITOR_IFACE` (set by aether.sh) and falls back to "wlan0".
+///
+/// Invoked from frontend: `invoke('get_monitor_interface')`
+#[tauri::command]
+pub fn get_monitor_interface() -> String {
+    std::env::var("AETHER_MONITOR_IFACE").unwrap_or_else(|_| "wlan0".to_string())
+}
+
 /// List all available network interfaces.
 ///
 /// Returns both wired and wireless interfaces. Each includes
