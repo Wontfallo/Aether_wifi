@@ -488,3 +488,31 @@ export interface ApDetail {
     last_seen_ms: number;
     beacon_count: number;
 }
+
+/**
+ * A single wardrive observation combining WiFi and GPS data.
+ */
+export interface WardriveEntry {
+    bssid: string;
+    ssid: string;
+    channel: number;
+    rssi: number;
+    encryption: string;
+    vendor: string | null;
+    latitude: number;
+    longitude: number;
+    altitude: number;
+    timestamp_ms: number;
+}
+
+/**
+ * GPS location from gpsd.
+ */
+export interface GpsLocation {
+    latitude: number;
+    longitude: number;
+    altitude: number;
+    speed: number;
+    timestamp: string;
+    fix_mode: number;
+}

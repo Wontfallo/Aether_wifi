@@ -17,6 +17,7 @@ pub mod packet_sniffer;
 pub mod sniffer;
 pub mod ssid_manager;
 pub mod types;
+pub mod wardrive;
 
 pub use interface_scanner::InterfaceScanner;
 pub use mode_controller::ModeController;
