@@ -132,6 +132,9 @@ pub struct BeaconFrame {
     /// Frequency in MHz (e.g. 2437 for channel 6).
     pub frequency_mhz: u16,
 
+    /// Vendor name resolved from OUI lookup on the BSSID.
+    pub vendor: Option<String>,
+
     /// Unix timestamp (milliseconds) when this frame was captured.
     pub timestamp_ms: u64,
 }

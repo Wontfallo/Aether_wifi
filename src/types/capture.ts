@@ -39,6 +39,9 @@ export interface BeaconFrame {
     /** Frequency in MHz (e.g. 2437 for channel 6) */
     frequency_mhz: number;
 
+    /** Vendor name from OUI lookup, or null if unknown */
+    vendor: string | null;
+
     /** Unix timestamp in milliseconds when this frame was captured */
     timestamp_ms: number;
 }
