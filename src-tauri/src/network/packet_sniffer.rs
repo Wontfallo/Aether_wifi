@@ -48,6 +48,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use super::oui::lookup_vendor;
 use super::types::BeaconFrame;
 use super::types::StationInfo;
 
@@ -490,12 +491,14 @@ fn parse_airodump_csv(contents: &str) -> Vec<BeaconFrame> {
         let rssi = columns[8].parse::<i8>().unwrap_or(-100);
         let ssid = columns[13..].join(",").trim().to_string();
 
+        let bssid_upper = bssid.to_ascii_uppercase();
         beacons.push(BeaconFrame {
-            bssid: bssid.to_ascii_uppercase(),
+            bssid: bssid_upper.clone(),
             ssid,
             channel,
             rssi,
             frequency_mhz: channel_to_freq(channel),
+            vendor: lookup_vendor(&bssid_upper).map(|s| s.to_string()),
             timestamp_ms: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
@@ -563,13 +566,14 @@ fn parse_airodump_stations(contents: &str) -> Vec<StationInfo> {
             .filter(|s| !s.is_empty())
             .collect();
 
+        let mac_upper = mac.to_ascii_uppercase();
         stations.push(StationInfo {
-            mac: mac.to_ascii_uppercase(),
+            mac: mac_upper.clone(),
             associated_bssid,
             rssi,
             packet_count,
             probed_ssids,
-            vendor: None,
+            vendor: lookup_vendor(&mac_upper).map(|s| s.to_string()),
             timestamp_ms: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
@@ -804,11 +808,12 @@ fn parse_beacon_frame(data: &[u8]) -> Option<BeaconFrame> {
         .as_millis() as u64;
 
     Some(BeaconFrame {
-        bssid,
+        bssid: bssid.clone(),
         ssid,
         channel,
-        rssi: rssi.unwrap_or(-100), // -100 dBm as "unknown" sentinel
+        rssi: rssi.unwrap_or(-100),
         frequency_mhz,
+        vendor: lookup_vendor(&bssid).map(|s| s.to_string()),
         timestamp_ms,
     })
 }
