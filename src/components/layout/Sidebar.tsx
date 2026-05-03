@@ -1,6 +1,6 @@
 import {
-  Activity, Target, Shield, LayoutDashboard, Terminal, Stethoscope,
-  Settings2, Radar, Zap, Eye, Wrench,
+  Activity, Target, Zap, LayoutDashboard, Terminal, Stethoscope,
+  Settings2, Radar, Eye, Wrench,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
@@ -10,9 +10,8 @@ const NAV_ITEMS = [
     { id: "dashboard", icon: LayoutDashboard, label: "Dashboard", path: "/" },
     { id: "spectrum", icon: Activity, label: "Spectrum", path: "/spectrum" },
     { id: "hunt", icon: Target, label: "Hunt Mode", path: "/hunt" },
-    { id: "audit", icon: Shield, label: "Audit Suite", path: "/audit" },
+    { id: "strike", icon: Zap, label: "Strike", path: "/strike" },
     { id: "recon", icon: Radar, label: "Recon", path: "/recon" },
-    { id: "attack", icon: Zap, label: "Attack", path: "/attack" },
     { id: "sniffer", icon: Eye, label: "Sniffer", path: "/sniffer" },
     { id: "tools", icon: Wrench, label: "Tools", path: "/tools" },
     { id: "doctor", icon: Stethoscope, label: "Env Doctor", path: "/doctor" },

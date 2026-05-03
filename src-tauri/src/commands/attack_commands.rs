@@ -290,9 +290,10 @@ pub fn start_evil_portal(
 /// Start a karma attack (requires bettercap daemon running).
 #[tauri::command]
 pub fn start_karma_attack(
-    channel: u8,
+    channel: Option<u8>,
     state: tauri::State<'_, BettercapState>,
 ) -> Result<CaptureStatus, AetherError> {
+    let channel = channel.unwrap_or(6);
     info!("[cmd] start_karma_attack on CH={}", channel);
 
     let guard = state.0.lock()

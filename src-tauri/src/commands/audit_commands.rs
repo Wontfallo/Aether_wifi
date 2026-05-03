@@ -11,6 +11,8 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
+use crate::commands::advanced_attack_commands::AdvancedAttackState;
+use crate::commands::attack_commands::{AttackState, BettercapState};
 use crate::error::AetherError;
 use crate::network::audit;
 
@@ -644,6 +646,9 @@ pub fn one_click_capture(
 pub fn stop_all_attacks(
     eapol_state: tauri::State<'_, EapolCaptureState>,
     deauth_state: tauri::State<'_, DeauthState>,
+    attack_state: tauri::State<'_, AttackState>,
+    advanced_attack_state: tauri::State<'_, AdvancedAttackState>,
+    bettercap_state: tauri::State<'_, BettercapState>,
 ) -> Result<HandshakeResult, AetherError> {
     info!("[cmd] stop_all_attacks");
 
@@ -658,6 +663,24 @@ pub fn stop_all_attacks(
     if let Ok(mut guard) = deauth_state.0.lock() {
         if let Some(flag) = guard.take() {
             flag.store(true, Ordering::Relaxed);
+        }
+    }
+
+    if let Ok(mut guard) = attack_state.0.lock() {
+        if let Some(mut handle) = guard.take() {
+            handle.stop();
+        }
+    }
+
+    if let Ok(mut guard) = advanced_attack_state.0.lock() {
+        if let Some(mut handle) = guard.take() {
+            handle.stop();
+        }
+    }
+
+    if let Ok(mut guard) = bettercap_state.0.lock() {
+        if let Some(mut handle) = guard.take() {
+            handle.stop();
         }
     }
 

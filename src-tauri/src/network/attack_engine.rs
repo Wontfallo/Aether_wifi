@@ -17,7 +17,7 @@
 //! | Evil Portal          | bettercap     | wifi.ap   |
 //! | Karma Attack         | bettercap     | wifi.ap   |
 
-use log::{error, info, warn};
+use log::info;
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};

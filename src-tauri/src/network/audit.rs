@@ -83,7 +83,7 @@ pub fn capture_and_save_eapol(
     output_pcap_path: &str,
     stop_flag: Arc<AtomicBool>,
 ) -> Result<(), AetherError> {
-    let mut cap = pcap::Capture::from_device(interface_name)
+    let cap = pcap::Capture::from_device(interface_name)
         .map_err(|e| AetherError::CaptureError(e.to_string()))?
         .promisc(true)
         .snaplen(65535)

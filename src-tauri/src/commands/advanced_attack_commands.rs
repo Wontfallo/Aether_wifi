@@ -108,9 +108,10 @@ pub fn start_sleep_attack(
 pub fn start_quiet_time(
     interface_name: String,
     channel: u8,
-    duration_ms: u16,
+    duration_ms: Option<u16>,
     state: tauri::State<'_, AdvancedAttackState>,
 ) -> Result<CaptureStatus, AetherError> {
+    let duration_ms = duration_ms.unwrap_or(100);
     info!(
         "[cmd] start_quiet_time on {} CH={} dur={}",
         interface_name, channel, duration_ms

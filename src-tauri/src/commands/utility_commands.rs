@@ -2,7 +2,7 @@
 //! MAC spoofing, SSID list management, WiFi join, AP management, wardrive.
 
 use crate::network::{mac_spoof, ssid_manager, wardrive, MacSpoofResult, SsidList};
-use crate::network::ap_manager::{self, ApDetail, ApStore, SavedAp};
+use crate::network::ap_manager::{self, SavedAp};
 use crate::network::wardrive::WardriveEntry;
 use tauri::AppHandle;
 

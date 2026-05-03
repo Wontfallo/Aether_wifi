@@ -5,14 +5,41 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   PageHeader, ActionButton, StatCard, DataTable,
-  TabBar, EmptyState, GlassCard, StatusBadge, SignalBar,
+  TabBar, EmptyState, GlassCard, StatusBadge, SignalBar, InputField,
 } from "../components/ui/shared";
 import type {
-  ProbeRequest, DeauthEvent, PacketStats, PmkidCapture, PwnagotchiInfo,
+  ProbeRequest, DeauthEvent, PacketStats, PmkidCapture, PwnagotchiInfo, RawFrame,
+  SaeFrame, MacTrackEntry,
 } from "../types/capture";
 
 const MAX_ENTRIES = 500;
 const FPS_HISTORY = 60;
+
+function getErrorMessage(error: unknown): string {
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Unknown error";
+  }
+}
+
+function ErrorBanner({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  return (
+    <div className="mb-4 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 font-mono text-sm text-destructive">
+      <div className="flex items-start justify-between gap-4">
+        <span className="break-all">{message}</span>
+        <button onClick={onDismiss} className="opacity-70 transition-opacity hover:opacity-100">×</button>
+      </div>
+    </div>
+  );
+}
+
+type SnifferControlProps = {
+  interfaceName: string;
+  onError: (message: string | null) => void;
+};
 
 function formatTime(ms: number): string {
   const d = new Date(ms);
@@ -25,7 +52,7 @@ function truncate(s: string, len: number): string {
 
 /* ─────────────────────── Probe Requests Tab ─────────────────────── */
 
-function ProbeRequestsTab() {
+function ProbeRequestsTab({ interfaceName, onError }: SnifferControlProps) {
   const [probes, setProbes] = useState<(ProbeRequest & { _id: number })[]>([]);
   const [running, setRunning] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -59,15 +86,18 @@ function ProbeRequestsTab() {
 
   const toggle = async () => {
     setLoading(true);
+    onError(null);
     try {
       if (running) {
         await invoke("stop_sniffer");
         setRunning(false);
       } else {
-        await invoke("start_sniffer", { interfaceName: "wlan0" });
+        await invoke("start_sniffer", { interfaceName });
         setRunning(true);
       }
-    } catch { /* ignore */ }
+    } catch (error) {
+      onError(getErrorMessage(error));
+    }
     setLoading(false);
   };
 
@@ -112,7 +142,7 @@ function ProbeRequestsTab() {
 
 /* ─────────────────────── Deauth Monitor Tab ─────────────────────── */
 
-function DeauthMonitorTab() {
+function DeauthMonitorTab({ interfaceName, onError }: SnifferControlProps) {
   const [events, setEvents] = useState<(DeauthEvent & { _id: number })[]>([]);
   const [running, setRunning] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -144,15 +174,18 @@ function DeauthMonitorTab() {
 
   const toggle = async () => {
     setLoading(true);
+    onError(null);
     try {
       if (running) {
         await invoke("stop_sniffer");
         setRunning(false);
       } else {
-        await invoke("start_sniffer", { interfaceName: "wlan0" });
+        await invoke("start_sniffer", { interfaceName });
         setRunning(true);
       }
-    } catch { /* ignore */ }
+    } catch (error) {
+      onError(getErrorMessage(error));
+    }
     setLoading(false);
   };
 
@@ -201,7 +234,7 @@ function DeauthMonitorTab() {
 
 /* ─────────────────────── Packet Stats Tab ─────────────────────── */
 
-function PacketStatsTab() {
+function PacketStatsTab({ interfaceName, onError }: SnifferControlProps) {
   const [stats, setStats] = useState<PacketStats | null>(null);
   const [fpsHistory, setFpsHistory] = useState<{ time: string; fps: number }[]>([]);
   const [running, setRunning] = useState(false);
@@ -231,15 +264,18 @@ function PacketStatsTab() {
 
   const toggle = async () => {
     setLoading(true);
+    onError(null);
     try {
       if (running) {
         await invoke("stop_packet_monitor");
         setRunning(false);
       } else {
-        await invoke("start_packet_monitor", { interfaceName: "wlan0" });
+        await invoke("start_packet_monitor", { interfaceName });
         setRunning(true);
       }
-    } catch { /* ignore */ }
+    } catch (error) {
+      onError(getErrorMessage(error));
+    }
     setLoading(false);
   };
 
@@ -325,7 +361,7 @@ function PacketStatsTab() {
 
 /* ─────────────────────── PMKID Tab ─────────────────────── */
 
-function PmkidTab() {
+function PmkidTab({ interfaceName, onError }: SnifferControlProps) {
   const [captures, setCaptures] = useState<(PmkidCapture & { _id: number })[]>([]);
   const [running, setRunning] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -355,15 +391,18 @@ function PmkidTab() {
 
   const toggle = async () => {
     setLoading(true);
+    onError(null);
     try {
       if (running) {
         await invoke("stop_pmkid_capture");
         setRunning(false);
       } else {
-        await invoke("start_pmkid_capture", { interfaceName: "wlan0" });
+        await invoke("start_pmkid_capture", { interfaceName });
         setRunning(true);
       }
-    } catch { /* ignore */ }
+    } catch (error) {
+      onError(getErrorMessage(error));
+    }
     setLoading(false);
   };
 
@@ -434,7 +473,7 @@ function PmkidTab() {
 
 /* ─────────────────────── Pwnagotchi Tab ─────────────────────── */
 
-function PwnagotchiTab() {
+function PwnagotchiTab({ interfaceName, onError }: SnifferControlProps) {
   const [detections, setDetections] = useState<(PwnagotchiInfo & { _id: number })[]>([]);
   const [running, setRunning] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -463,15 +502,18 @@ function PwnagotchiTab() {
 
   const toggle = async () => {
     setLoading(true);
+    onError(null);
     try {
       if (running) {
         await invoke("stop_pwnagotchi_detect");
         setRunning(false);
       } else {
-        await invoke("detect_pwnagotchi", { interfaceName: "wlan0" });
+        await invoke("detect_pwnagotchi", { interfaceName });
         setRunning(true);
       }
-    } catch { /* ignore */ }
+    } catch (error) {
+      onError(getErrorMessage(error));
+    }
     setLoading(false);
   };
 
@@ -541,18 +583,261 @@ function PwnagotchiTab() {
   );
 }
 
+/* ─────────────────────── Raw Frames Tab ─────────────────────── */
+
+function RawFramesTab({ interfaceName, onError }: SnifferControlProps) {
+  const [frames, setFrames] = useState<(RawFrame & { _id: number })[]>([]);
+  const [running, setRunning] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const idRef = useRef(0);
+
+  useEffect(() => {
+    let unlisten: UnlistenFn | null = null;
+    let mounted = true;
+
+    void (async () => {
+      unlisten = await listen<RawFrame>("raw-frame", (evt) => {
+        if (!mounted) return;
+        const id = ++idRef.current;
+        setFrames((prev) => {
+          const next = [{ ...evt.payload, _id: id }, ...prev];
+          return next.length > MAX_ENTRIES ? next.slice(0, MAX_ENTRIES) : next;
+        });
+      });
+    })();
+
+    return () => {
+      mounted = false;
+      unlisten?.();
+    };
+  }, []);
+
+  const toggle = async () => {
+    setLoading(true);
+    onError(null);
+    try {
+      if (running) {
+        await invoke("stop_raw_capture");
+        setRunning(false);
+      } else {
+        await invoke("start_raw_capture", { interfaceName });
+        setRunning(true);
+      }
+    } catch (error) {
+      onError(getErrorMessage(error));
+    }
+    setLoading(false);
+  };
+
+  type RawRow = RawFrame & { _id: number; [key: string]: unknown };
+  const columns = useMemo(() => [
+    { key: "time", label: "Time", render: (row: RawRow) => <span className="text-muted-foreground">{formatTime(row.timestamp_ms)}</span> },
+    { key: "frame_type", label: "Type" },
+    { key: "subtype", label: "Subtype" },
+    { key: "addr2", label: "Source", render: (row: RawRow) => <span className="font-mono">{row.addr2 ?? "—"}</span> },
+    { key: "addr1", label: "Dest", render: (row: RawRow) => <span className="font-mono">{row.addr1 ?? "—"}</span> },
+    { key: "channel", label: "CH", align: "center" as const, render: (row: RawRow) => row.channel ?? "—" },
+    { key: "size", label: "Bytes", align: "center" as const },
+  ], []);
+
+  return (
+    <div className="flex flex-col gap-6 flex-1 min-h-0">
+      <div className="flex items-center gap-4">
+        <ActionButton variant={running ? "destructive" : "primary"} onClick={toggle} loading={loading}>
+          {running ? <><Square className="w-4 h-4" /> Stop Capture</> : <><Play className="w-4 h-4" /> Start Capture</>}
+        </ActionButton>
+        <StatusBadge status={running ? "active" : "inactive"} label={running ? "Capturing" : "Idle"} pulse />
+      </div>
+
+      <StatCard label="Raw Frames" value={frames.length} accent="primary" />
+
+      {frames.length === 0 ? (
+        <EmptyState icon={<Radio className="w-12 h-12" />} title="No Raw Frames" description="Start raw capture to inspect live 802.11 traffic." />
+      ) : (
+        <DataTable columns={columns} data={frames as unknown as RawRow[]} keyField="_id" maxHeight="calc(100vh - 380px)" />
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────── SAE Tab ─────────────────────── */
+
+function SaeSniffTab({ interfaceName, onError }: SnifferControlProps) {
+  const [frames, setFrames] = useState<(SaeFrame & { _id: number })[]>([]);
+  const [running, setRunning] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const idRef = useRef(0);
+
+  useEffect(() => {
+    let unlisten: UnlistenFn | null = null;
+    let mounted = true;
+
+    void (async () => {
+      unlisten = await listen<SaeFrame>("sae-frame", (evt) => {
+        if (!mounted) return;
+        const id = ++idRef.current;
+        setFrames((prev) => {
+          const next = [{ ...evt.payload, _id: id }, ...prev];
+          return next.length > MAX_ENTRIES ? next.slice(0, MAX_ENTRIES) : next;
+        });
+      });
+    })();
+
+    return () => {
+      mounted = false;
+      unlisten?.();
+    };
+  }, []);
+
+  const toggle = async () => {
+    setLoading(true);
+    onError(null);
+    try {
+      if (running) {
+        await invoke("stop_sae_sniff");
+        setRunning(false);
+      } else {
+        await invoke("start_sae_sniff", { interfaceName });
+        setRunning(true);
+      }
+    } catch (error) {
+      onError(getErrorMessage(error));
+    }
+    setLoading(false);
+  };
+
+  type SaeRow = SaeFrame & { _id: number; [key: string]: unknown };
+  const commitCount = useMemo(() => frames.filter((frame) => frame.is_commit).length, [frames]);
+  const confirmCount = useMemo(() => frames.filter((frame) => frame.is_confirm).length, [frames]);
+  const columns = useMemo(() => [
+    { key: "time", label: "Time", render: (row: SaeRow) => <span className="text-muted-foreground">{formatTime(row.timestamp_ms)}</span> },
+    { key: "source", label: "Source", render: (row: SaeRow) => <span className="font-mono text-primary">{row.source}</span> },
+    { key: "destination", label: "Destination", render: (row: SaeRow) => <span className="font-mono">{row.destination}</span> },
+    { key: "bssid", label: "BSSID", render: (row: SaeRow) => <span className="font-mono text-muted-foreground">{row.bssid}</span> },
+    { key: "seq_num", label: "Seq", align: "center" as const },
+    { key: "kind", label: "Kind", render: (row: SaeRow) => row.is_commit ? "Commit" : row.is_confirm ? "Confirm" : "Other" },
+  ], []);
+
+  return (
+    <div className="flex flex-col gap-6 flex-1 min-h-0">
+      <div className="flex items-center gap-4">
+        <ActionButton variant={running ? "destructive" : "primary"} onClick={toggle} loading={loading}>
+          {running ? <><Square className="w-4 h-4" /> Stop Sniff</> : <><Play className="w-4 h-4" /> Start Sniff</>}
+        </ActionButton>
+        <StatusBadge status={running ? "active" : "inactive"} label={running ? "Sniffing" : "Idle"} pulse />
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <StatCard label="SAE Frames" value={frames.length} accent="primary" />
+        <StatCard label="Commits" value={commitCount} accent="yellow" />
+        <StatCard label="Confirms" value={confirmCount} accent="green" />
+      </div>
+
+      {frames.length === 0 ? (
+        <EmptyState icon={<KeyRound className="w-12 h-12" />} title="No SAE Frames" description="Start SAE sniff to monitor WPA3 authentication exchanges." />
+      ) : (
+        <DataTable columns={columns} data={frames as unknown as SaeRow[]} keyField="_id" maxHeight="calc(100vh - 420px)" />
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────── MAC Track Tab ─────────────────────── */
+
+function MacTrackTab({ interfaceName, onError }: SnifferControlProps) {
+  const [targetMac, setTargetMac] = useState("");
+  const [entries, setEntries] = useState<(MacTrackEntry & { _id: number })[]>([]);
+  const [running, setRunning] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const idRef = useRef(0);
+
+  useEffect(() => {
+    let unlisten: UnlistenFn | null = null;
+    let mounted = true;
+
+    void (async () => {
+      unlisten = await listen<MacTrackEntry>("mac-track", (evt) => {
+        if (!mounted) return;
+        const id = ++idRef.current;
+        setEntries((prev) => {
+          const next = [{ ...evt.payload, _id: id }, ...prev];
+          return next.length > MAX_ENTRIES ? next.slice(0, MAX_ENTRIES) : next;
+        });
+      });
+    })();
+
+    return () => {
+      mounted = false;
+      unlisten?.();
+    };
+  }, []);
+
+  const toggle = async () => {
+    setLoading(true);
+    onError(null);
+    try {
+      if (running) {
+        await invoke("stop_mac_track");
+        setRunning(false);
+      } else {
+        await invoke("start_mac_track", { interfaceName, targetMac });
+        setRunning(true);
+      }
+    } catch (error) {
+      onError(getErrorMessage(error));
+    }
+    setLoading(false);
+  };
+
+  type MacTrackRow = MacTrackEntry & { _id: number; [key: string]: unknown };
+  const columns = useMemo(() => [
+    { key: "time", label: "Time", render: (row: MacTrackRow) => <span className="text-muted-foreground">{formatTime(row.timestamp_ms)}</span> },
+    { key: "mac", label: "MAC", render: (row: MacTrackRow) => <span className="font-mono text-primary">{row.mac}</span> },
+    { key: "role", label: "Role" },
+    { key: "frame_type", label: "Frame" },
+    { key: "channel", label: "CH", align: "center" as const, render: (row: MacTrackRow) => row.channel ?? "—" },
+    { key: "rssi", label: "RSSI", render: (row: MacTrackRow) => row.rssi == null ? "—" : <SignalBar rssi={row.rssi} /> },
+  ], []);
+
+  return (
+    <div className="flex flex-col gap-6 flex-1 min-h-0">
+      <GlassCard className="p-4">
+        <div className="flex flex-wrap items-end gap-4">
+          <InputField label="Target MAC" value={targetMac} onChange={(value) => setTargetMac(value.toUpperCase())} placeholder="AA:BB:CC:DD:EE:FF" className="flex-1 min-w-[260px]" />
+          <ActionButton variant={running ? "destructive" : "primary"} onClick={toggle} loading={loading} disabled={!running && !targetMac.trim()}>
+            {running ? <><Square className="w-4 h-4" /> Stop Tracking</> : <><Play className="w-4 h-4" /> Start Tracking</>}
+          </ActionButton>
+        </div>
+      </GlassCard>
+
+      <StatCard label="MAC Hits" value={entries.length} accent="primary" />
+
+      {entries.length === 0 ? (
+        <EmptyState icon={<Eye className="w-12 h-12" />} title="No MAC Hits" description="Track a MAC address to see where it appears in live traffic." />
+      ) : (
+        <DataTable columns={columns} data={entries as unknown as MacTrackRow[]} keyField="_id" maxHeight="calc(100vh - 420px)" />
+      )}
+    </div>
+  );
+}
+
 /* ─────────────────────── Main Sniffer Page ─────────────────────── */
 
 const TABS = [
   { id: "probes", label: "Probe Requests", icon: <Radio className="w-3.5 h-3.5" /> },
   { id: "deauth", label: "Deauth Monitor", icon: <ShieldAlert className="w-3.5 h-3.5" /> },
   { id: "packets", label: "Packet Stats", icon: <BarChart3 className="w-3.5 h-3.5" /> },
+  { id: "raw", label: "Raw Frames", icon: <Eye className="w-3.5 h-3.5" /> },
   { id: "pmkid", label: "PMKID", icon: <KeyRound className="w-3.5 h-3.5" /> },
+  { id: "sae", label: "SAE", icon: <KeyRound className="w-3.5 h-3.5" /> },
+  { id: "mac-track", label: "MAC Track", icon: <Eye className="w-3.5 h-3.5" /> },
   { id: "pwnagotchi", label: "Pwnagotchi", icon: <Ghost className="w-3.5 h-3.5" /> },
 ];
 
 export function Sniffer() {
   const [tab, setTab] = useState("probes");
+  const [interfaceName, setInterfaceName] = useState("wlan0");
+  const [error, setError] = useState<string | null>(null);
 
   return (
     <div className="h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -562,14 +847,50 @@ export function Sniffer() {
         subtitle="PASSIVE INTELLIGENCE"
       />
 
+      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+      <GlassCard className="mb-4 p-4">
+        <div className="flex flex-wrap items-end gap-4">
+          <InputField
+            label="Interface"
+            value={interfaceName}
+            onChange={setInterfaceName}
+            placeholder="wlan0"
+            className="min-w-[220px]"
+          />
+          <span className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+            Shared across all sniffer tabs
+          </span>
+        </div>
+      </GlassCard>
+
       <TabBar tabs={TABS} active={tab} onChange={setTab} />
 
       <div className="flex-1 min-h-0 flex flex-col">
-        {tab === "probes" && <ProbeRequestsTab />}
-        {tab === "deauth" && <DeauthMonitorTab />}
-        {tab === "packets" && <PacketStatsTab />}
-        {tab === "pmkid" && <PmkidTab />}
-        {tab === "pwnagotchi" && <PwnagotchiTab />}
+        <div className={tab === "probes" ? "flex-1 flex flex-col" : "hidden"}>
+          <ProbeRequestsTab interfaceName={interfaceName} onError={setError} />
+        </div>
+        <div className={tab === "deauth" ? "flex-1 flex flex-col" : "hidden"}>
+          <DeauthMonitorTab interfaceName={interfaceName} onError={setError} />
+        </div>
+        <div className={tab === "packets" ? "flex-1 flex flex-col" : "hidden"}>
+          <PacketStatsTab interfaceName={interfaceName} onError={setError} />
+        </div>
+        <div className={tab === "raw" ? "flex-1 flex flex-col" : "hidden"}>
+          <RawFramesTab interfaceName={interfaceName} onError={setError} />
+        </div>
+        <div className={tab === "pmkid" ? "flex-1 flex flex-col" : "hidden"}>
+          <PmkidTab interfaceName={interfaceName} onError={setError} />
+        </div>
+        <div className={tab === "sae" ? "flex-1 flex flex-col" : "hidden"}>
+          <SaeSniffTab interfaceName={interfaceName} onError={setError} />
+        </div>
+        <div className={tab === "mac-track" ? "flex-1 flex flex-col" : "hidden"}>
+          <MacTrackTab interfaceName={interfaceName} onError={setError} />
+        </div>
+        <div className={tab === "pwnagotchi" ? "flex-1 flex flex-col" : "hidden"}>
+          <PwnagotchiTab interfaceName={interfaceName} onError={setError} />
+        </div>
       </div>
     </div>
   );

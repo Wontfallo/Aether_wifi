@@ -1,0 +1,40 @@
+# Nmap 7.99 scan initiated Thu Apr 23 05:29:00 2026 as: /usr/lib/nmap/nmap -sS --top-ports 100 -T4 -oN quick-ports.txt 10.0.0.1 10.0.0.84 10.0.0.106 10.0.0.250
+Nmap scan report for 10.0.0.1
+Host is up (0.012s latency).
+Not shown: 92 closed tcp ports (reset)
+PORT      STATE    SERVICE
+22/tcp    filtered ssh
+23/tcp    filtered telnet
+53/tcp    open     domain
+80/tcp    open     http
+111/tcp   filtered rpcbind
+443/tcp   open     https
+8080/tcp  filtered http-proxy
+49152/tcp open     unknown
+MAC Address: F4:C1:14:F4:B0:5B (Vantiva USA)
+
+Nmap scan report for 10.0.0.84
+Host is up (0.014s latency).
+All 100 scanned ports on 10.0.0.84 are in ignored states.
+Not shown: 100 closed tcp ports (reset)
+MAC Address: 38:42:0B:B1:F8:1E (Sonos)
+
+Nmap scan report for 10.0.0.106
+Host is up (0.10s latency).
+Not shown: 95 closed tcp ports (reset)
+PORT     STATE SERVICE
+80/tcp   open  http
+443/tcp  open  https
+631/tcp  open  ipp
+8080/tcp open  http-proxy
+9100/tcp open  jetdirect
+MAC Address: B0:5A:DA:72:69:9F (Hewlett Packard)
+
+Nmap scan report for 10.0.0.250
+Host is up (0.077s latency).
+Not shown: 99 closed tcp ports (reset)
+PORT      STATE SERVICE
+49152/tcp open  unknown
+MAC Address: 86:5C:74:3E:E1:E1 (Unknown)
+
+# Nmap done at Thu Apr 23 05:29:02 2026 -- 4 IP addresses (4 hosts up) scanned in 1.93 seconds

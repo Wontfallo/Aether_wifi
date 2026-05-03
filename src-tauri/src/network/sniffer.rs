@@ -7,7 +7,7 @@
 //! Uses libpcap directly on the monitor-mode interface.
 
 use byteorder::{LittleEndian, ReadBytesExt};
-use log::{debug, error, info, trace, warn};
+use log::{debug, error, info, warn};
 use std::io::Cursor;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -25,11 +25,7 @@ const FRAME_SUBTYPE_DISASSOC: u8 = 10;
 const MGMT_MAC_HEADER_LEN: usize = 24;
 
 // Radiotap constants (same as packet_sniffer.rs)
-const RT_TSFT: u32 = 0;
-const RT_FLAGS: u32 = 1;
-const RT_RATE: u32 = 2;
 const RT_CHANNEL: u32 = 3;
-const RT_FHSS: u32 = 4;
 const RT_DBM_ANTSIGNAL: u32 = 5;
 const RT_EXT: u32 = 31;
 

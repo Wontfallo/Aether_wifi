@@ -1,7 +1,7 @@
 import { Radar, Search, Server } from "lucide-react";
-import { useState, useCallback, type ReactNode } from "react";
+import { useState, useCallback, useEffect, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { HostInfo, PortResult, ServiceInfo } from "../types/capture";
+import type { HostInfo, NetworkInterface, PortResult, ServiceInfo } from "../types/capture";
 import {
   PageHeader,
   TabBar,
@@ -10,6 +10,7 @@ import {
   ActionButton,
   DataTable,
   InputField,
+  SelectField,
 } from "../components/ui/shared";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -107,6 +108,7 @@ export function Recon() {
   // Host Discovery state
   const [hostSubnet, setHostSubnet] = useState("192.168.1.0/24");
   const [hostInterface, setHostInterface] = useState("eth0");
+  const [interfaces, setInterfaces] = useState<NetworkInterface[]>([]);
   const [hosts, setHosts] = useState<HostInfo[]>([]);
   const [hostLoading, setHostLoading] = useState<"ping" | "arp" | null>(null);
   const [hostError, setHostError] = useState<string | null>(null);
@@ -123,6 +125,27 @@ export function Recon() {
   const [services, setServices] = useState<ServiceInfo[]>([]);
   const [svcLoading, setSvcLoading] = useState<"ssh" | "telnet" | null>(null);
   const [svcError, setSvcError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void (async () => {
+      try {
+        const result = await invoke<NetworkInterface[]>("list_interfaces");
+        if (!mounted) return;
+        setInterfaces(result);
+        if (!result.some((item) => item.name === hostInterface) && result[0]) {
+          setHostInterface(result[0].name);
+        }
+      } catch {
+        // Keep manual entry fallback if interface discovery fails.
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [hostInterface]);
 
   /* ─── Host Discovery handlers ─── */
   const handlePingScan = useCallback(async () => {
@@ -213,7 +236,17 @@ export function Recon() {
             <GlassCard className="p-5">
               <div className="flex flex-wrap items-end gap-4">
                 <InputField label="Subnet" value={hostSubnet} onChange={setHostSubnet} placeholder="192.168.1.0/24" mono className="flex-1 min-w-[200px]" />
-                <InputField label="Interface (ARP)" value={hostInterface} onChange={setHostInterface} placeholder="eth0" mono className="flex-1 min-w-[140px]" />
+                {interfaces.length > 0 ? (
+                  <SelectField
+                    label="Interface (ARP)"
+                    value={hostInterface}
+                    onChange={setHostInterface}
+                    options={interfaces.map((item) => ({ value: item.name, label: item.name }))}
+                    className="flex-1 min-w-[140px]"
+                  />
+                ) : (
+                  <InputField label="Interface (ARP)" value={hostInterface} onChange={setHostInterface} placeholder="eth0" mono className="flex-1 min-w-[140px]" />
+                )}
                 <div className="flex gap-2">
                   <ActionButton variant="primary" size="md" onClick={handlePingScan} loading={hostLoading === "ping"} disabled={hostLoading !== null}>
                     Ping Scan

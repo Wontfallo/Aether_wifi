@@ -73,20 +73,14 @@ const BEACON_FIXED_FIELDS_LEN: usize = 12;
 // ─────────────────────────────────────────────────
 
 /// Bit positions in the radiotap `present` bitmask.
+#[cfg(test)]
 const RT_TSFT: u32 = 0;
+#[cfg(test)]
 const RT_FLAGS: u32 = 1;
+#[cfg(test)]
 const RT_RATE: u32 = 2;
 const RT_CHANNEL: u32 = 3;
-const RT_FHSS: u32 = 4;
 const RT_DBM_ANTSIGNAL: u32 = 5;
-const RT_DBM_ANTNOISE: u32 = 6;
-const RT_LOCK_QUALITY: u32 = 7;
-const RT_TX_ATTENUATION: u32 = 8;
-const RT_DB_TX_ATTENUATION: u32 = 9;
-const RT_DBM_TX_POWER: u32 = 10;
-const RT_ANTENNA: u32 = 11;
-const RT_DB_ANTSIGNAL: u32 = 12;
-const RT_DB_ANTNOISE: u32 = 13;
 // Bit 31: extension flag (another 32-bit present word follows)
 const RT_EXT: u32 = 31;
 
