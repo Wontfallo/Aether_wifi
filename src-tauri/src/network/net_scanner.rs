@@ -11,6 +11,15 @@ use regex::Regex;
 use crate::error::AetherError;
 use crate::network::types::{HostInfo, PortResult, ServiceInfo};
 
+fn split_targets(target: &str) -> Vec<String> {
+    target
+        .split(|character: char| character == ',' || character.is_whitespace())
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
 /// Current Unix timestamp in milliseconds.
 fn now_ms() -> u64 {
     SystemTime::now()
@@ -189,8 +198,25 @@ pub(crate) fn parse_arp_scan_output(output: &str) -> Vec<HostInfo> {
 ///
 /// `ports` uses nmap syntax: `"22"`, `"1-1024"`, `"22,80,443"`, etc.
 pub fn port_scan(target: &str, ports: &str) -> Result<Vec<PortResult>, AetherError> {
+    let mut args = vec![
+        "-p".to_string(),
+        ports.to_string(),
+        "-oG".to_string(),
+        "-".to_string(),
+    ];
+    let targets = split_targets(target);
+
+    if targets.is_empty() {
+        return Err(AetherError::CommandFailed {
+            command: "nmap -p".into(),
+            detail: "No scan target was provided.".into(),
+        });
+    }
+
+    args.extend(targets);
+
     let output = Command::new("nmap")
-        .args(["-p", ports, "-oG", "-", target])
+        .args(&args)
         .output()
         .map_err(|e| AetherError::CommandFailed {
             command: "nmap -p".into(),
@@ -275,10 +301,91 @@ pub fn telnet_scan(subnet: &str) -> Result<Vec<ServiceInfo>, AetherError> {
     service_scan(subnet, "23", "telnet")
 }
 
+/// Run a preset post-connect service discovery profile against one host,
+/// many hosts, or a subnet.
+pub fn service_profile_scan(target: &str, profile: &str) -> Result<Vec<ServiceInfo>, AetherError> {
+    let targets = split_targets(target);
+    if targets.is_empty() {
+        return Err(AetherError::CommandFailed {
+            command: "nmap service profile".into(),
+            detail: "No scan target was provided.".into(),
+        });
+    }
+
+    let mut args = vec![
+        "-n".to_string(),
+        "--open".to_string(),
+        "-sV".to_string(),
+        "--version-light".to_string(),
+        "-oG".to_string(),
+        "-".to_string(),
+    ];
+
+    let label = match profile {
+        "quick_tcp" => {
+            args.extend(["-sS", "--top-ports", "250"].iter().map(|value| value.to_string()));
+            "quick_tcp"
+        }
+        "web_admin" => {
+            args.extend(["-sS", "-p", "80,81,443,591,8000,8080,8081,8443,8888"].iter().map(|value| value.to_string()));
+            "web_admin"
+        }
+        "file_shares" => {
+            args.extend(["-sS", "-p", "111,139,445,2049"].iter().map(|value| value.to_string()));
+            "file_shares"
+        }
+        "camera_streams" => {
+            args.extend(["-sS", "-p", "80,81,443,554,8000,8080,8554"].iter().map(|value| value.to_string()));
+            "camera_streams"
+        }
+        "udp_infra" => {
+            args.extend(["-sU", "-p", "53,67,68,69,123,137,161,1900,5353"].iter().map(|value| value.to_string()));
+            "udp_infra"
+        }
+        _ => {
+            return Err(AetherError::CommandFailed {
+                command: "nmap service profile".into(),
+                detail: format!("Unknown service discovery profile '{}'.", profile),
+            });
+        }
+    };
+
+    args.extend(targets);
+
+    let output = Command::new("nmap")
+        .args(&args)
+        .output()
+        .map_err(|e| AetherError::CommandFailed {
+            command: format!("nmap service profile ({})", label),
+            detail: e.to_string(),
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AetherError::CommandFailed {
+            command: format!("nmap service profile ({})", label),
+            detail: stderr.to_string(),
+        });
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    Ok(parse_service_scan_output(&stdout))
+}
+
 /// Generic service scan: runs `nmap -p<port> --open -sV -oG -` on `subnet`.
 fn service_scan(subnet: &str, port: &str, label: &str) -> Result<Vec<ServiceInfo>, AetherError> {
+    let mut args = vec![
+        "-p".to_string(),
+        port.to_string(),
+        "--open".to_string(),
+        "-sV".to_string(),
+        "-oG".to_string(),
+        "-".to_string(),
+    ];
+    args.extend(split_targets(subnet));
+
     let output = Command::new("nmap")
-        .args(["-p", port, "--open", "-sV", "-oG", "-", subnet])
+        .args(&args)
         .output()
         .map_err(|e| AetherError::CommandFailed {
             command: format!("nmap -p{} -sV ({})", port, label),
@@ -325,6 +432,7 @@ pub(crate) fn parse_service_scan_output(output: &str) -> Vec<ServiceInfo> {
                 results.push(ServiceInfo {
                     host: host.clone(),
                     port,
+                    protocol: cap[2].to_string(),
                     service,
                     version,
                     mac: None,
@@ -494,6 +602,7 @@ Host: 192.168.1.50 ()\tPorts: 22/open/tcp//ssh//dropbear 2022.83/
         let results = parse_service_scan_output(output);
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].service, "telnet");
+        assert_eq!(results[0].protocol, "tcp");
         assert!(results[0].version.is_none());
     }
 
@@ -502,6 +611,16 @@ Host: 192.168.1.50 ()\tPorts: 22/open/tcp//ssh//dropbear 2022.83/
         let output = "# Nmap done: 256 IP addresses (0 hosts up)\n";
         let results = parse_service_scan_output(output);
         assert!(results.is_empty());
+    }
+
+    #[test]
+    fn parse_service_scan_udp_protocol() {
+        let output = "Host: 10.0.0.53 ()\tPorts: 161/open/udp//snmp//SNMPv2 server/\n";
+        let results = parse_service_scan_output(output);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].protocol, "udp");
+        assert_eq!(results[0].service, "snmp");
+        assert_eq!(results[0].version.as_deref(), Some("SNMPv2 server"));
     }
 
     #[test]

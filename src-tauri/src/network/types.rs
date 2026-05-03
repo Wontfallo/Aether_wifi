@@ -277,6 +277,7 @@ pub struct PortResult {
 pub struct ServiceInfo {
     pub host: String,
     pub port: u16,
+    pub protocol: String,
     pub service: String,
     pub version: Option<String>,
     pub mac: Option<String>,

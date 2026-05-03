@@ -18,6 +18,7 @@ IFACE="${AETHER_IFACE:-wlan0}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${AETHER_PROJECT_DIR:-$SCRIPT_DIR}"
 RESTORE_MANAGED="${AETHER_RESTORE_MANAGED:-1}"
+GLOBAL_NETWORK_KILL="${AETHER_GLOBAL_NETWORK_KILL:-0}"
 NEEDS_CLEANUP=0
 NETWORKMANAGER_WAS_ACTIVE=0
 WPASUPPLICANT_WAS_ACTIVE=0
@@ -56,7 +57,7 @@ restore_interface_state() {
         sudo nmcli device set "$BASE_IFACE" managed yes &>/dev/null || true
     fi
 
-    if command -v systemctl &>/dev/null; then
+    if [ "$GLOBAL_NETWORK_KILL" = "1" ] && command -v systemctl &>/dev/null; then
         if [ "$NETWORKMANAGER_WAS_ACTIVE" -eq 1 ]; then
             sudo systemctl restart NetworkManager &>/dev/null || true
         fi
@@ -119,21 +120,28 @@ fi
 echo -e "  ${GREEN}✓${NC} Found $IFACE"
 NEEDS_CLEANUP=1
 
-# ── 3. Kill interfering services & activate monitor mode ──
+# ── 3. Release only the WiFi interface & activate monitor mode ──
 echo -e "${YELLOW}[2/4]${NC} Ensuring clean monitor mode..."
 
 # Set regulatory domain for proper txpower
 sudo iw reg set US &>/dev/null || true
 
-echo -e "  Stopping interfering services..."
-if command -v airmon-ng &>/dev/null; then
-    sudo airmon-ng check kill &>/dev/null || true
-else
-    sudo systemctl stop NetworkManager &>/dev/null || true
-    sudo systemctl stop wpa_supplicant &>/dev/null || true
-fi
+echo -e "  Releasing ${IFACE} from managed networking..."
 if command -v nmcli &>/dev/null; then
+    sudo nmcli device disconnect "$IFACE" &>/dev/null || true
     sudo nmcli device set "$IFACE" managed no &>/dev/null || true
+fi
+
+if [ "$GLOBAL_NETWORK_KILL" = "1" ]; then
+    echo -e "  ${YELLOW}!${NC} Global network kill enabled; stopping shared WiFi services..."
+    if command -v airmon-ng &>/dev/null; then
+        sudo airmon-ng check kill &>/dev/null || true
+    else
+        sudo systemctl stop NetworkManager &>/dev/null || true
+        sudo systemctl stop wpa_supplicant &>/dev/null || true
+    fi
+else
+    echo -e "  ${GREEN}✓${NC} Keeping Ethernet and other network services online"
 fi
 
 # Use airmon-ng for monitor mode (handles driver quirks better than iw)
@@ -151,7 +159,7 @@ else
     sudo iw "$IFACE" set type monitor
     sudo ip link set "$IFACE" up
 fi
-echo -e "  ${GREEN}✓${NC} Monitor mode activated on ${IFACE} (services killed)"
+echo -e "  ${GREEN}✓${NC} Monitor mode activated on ${IFACE}"
 
 # ── 4. Set a sensible initial channel ──
 TARGET_CHANNEL="${INITIAL_CHANNEL:-6}"
