@@ -282,14 +282,16 @@ export interface PortResult {
 }
 
 /**
- * A discovered network service (SSH, Telnet, etc.).
- * Returned by `invoke('ssh_scan')` and `invoke('telnet_scan')`.
+ * A discovered network service from a focused scan or post-connect profile.
+ * Returned by `invoke('ssh_scan')`, `invoke('telnet_scan')`, and `invoke('service_profile_scan')`.
  */
 export interface ServiceInfo {
     /** Host IP address */
     host: string;
     /** Service port number */
     port: number;
+    /** Transport protocol (tcp/udp) */
+    protocol: string;
     /** Service name (e.g. "ssh", "telnet") */
     service: string;
     /** Service version string, or null */

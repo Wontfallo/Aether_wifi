@@ -150,6 +150,7 @@ pub fn run() {
             scanner_commands::port_scan,
             scanner_commands::ssh_scan,
             scanner_commands::telnet_scan,
+            scanner_commands::service_profile_scan,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Aether application");

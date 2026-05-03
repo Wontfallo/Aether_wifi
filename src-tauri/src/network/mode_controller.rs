@@ -9,7 +9,7 @@
 //! All commands require root privileges. The module detects permission errors
 //! and surfaces them as `AetherError::PermissionDenied`.
 
-use log::{debug, info, warn};
+use log::{debug, info};
 use std::process::Command;
 
 use crate::error::{AetherError, AetherResult};
@@ -130,42 +130,42 @@ impl ModeController {
     // Internal helpers
     // ─────────────────────────────────────────────
 
-    /// Attempt to stop processes that interfere with monitor mode.
+    /// Release only the target interface from managed networking before
+    /// switching it to monitor mode.
     ///
-    /// This is the equivalent of `airmon-ng check kill`.
-    /// Non-fatal — we log warnings but don't fail the operation.
+    /// This intentionally avoids stopping NetworkManager or wpa_supplicant
+    /// globally, because doing so can disconnect unrelated interfaces like
+    /// Ethernet on the host.
     #[cfg(target_os = "linux")]
     fn kill_interfering_processes(interface_name: &str) {
-        info!("Checking for interfering processes on {}...", interface_name);
-
-        // Try airmon-ng first (most thorough)
-        if let Ok(output) = Self::run_privileged("airmon-ng", &["check", "kill"]) {
-            debug!("airmon-ng check kill: {}", output.trim());
-            return;
-        }
-
-        // Manual fallback: stop NetworkManager and wpa_supplicant
-        for service in &["NetworkManager", "wpa_supplicant"] {
-            match Self::run_privileged("systemctl", &["stop", service]) {
-                Ok(_) => info!("Stopped {}", service),
-                Err(e) => debug!("Could not stop {} (may not be running): {}", service, e),
-            }
-        }
-
-        // Also try to release the interface from NetworkManager
-        let _ = Self::run_privileged(
-            "nmcli",
-            &["device", "set", interface_name, "managed", "no"],
+        info!(
+            "Releasing {} from managed networking without touching other interfaces...",
+            interface_name
         );
+
+        match Self::run_privileged("nmcli", &["device", "disconnect", interface_name]) {
+            Ok(output) => debug!("nmcli device disconnect {}: {}", interface_name, output.trim()),
+            Err(e) => debug!(
+                "Could not disconnect {} via NetworkManager (may already be unmanaged): {}",
+                interface_name, e
+            ),
+        }
+
+        match Self::run_privileged("nmcli", &["device", "set", interface_name, "managed", "no"]) {
+            Ok(output) => debug!("nmcli device set {} managed no: {}", interface_name, output.trim()),
+            Err(e) => debug!(
+                "Could not mark {} unmanaged via NetworkManager: {}",
+                interface_name, e
+            ),
+        }
     }
 
-    /// Restore the services commonly disabled for monitor mode workflows.
+    /// Hand the interface back to managed networking after leaving monitor mode.
     ///
-    /// This is the cleanup counterpart to `kill_interfering_processes`.
     /// Non-fatal — cleanup should not mask a successful mode switch.
     #[cfg(target_os = "linux")]
     fn restore_managed_services(interface_name: &str) {
-        info!("Restoring managed networking services for {}...", interface_name);
+        info!("Restoring managed networking for {}...", interface_name);
 
         if let Err(e) = Self::run_privileged(
             "nmcli",
@@ -177,11 +177,12 @@ impl ModeController {
             );
         }
 
-        for service in &["wpa_supplicant", "NetworkManager"] {
-            match Self::run_privileged("systemctl", &["restart", service]) {
-                Ok(_) => info!("Restarted {}", service),
-                Err(e) => warn!("Could not restart {}: {}", service, e),
-            }
+        match Self::run_privileged("nmcli", &["device", "connect", interface_name]) {
+            Ok(output) => debug!("nmcli device connect {}: {}", interface_name, output.trim()),
+            Err(e) => debug!(
+                "Could not reconnect {} via NetworkManager (may require manual reconnect): {}",
+                interface_name, e
+            ),
         }
     }
 

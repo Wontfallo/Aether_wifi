@@ -51,3 +51,12 @@ pub fn telnet_scan(subnet: String) -> Result<Vec<ServiceInfo>, AetherError> {
     log::info!("[cmd] telnet_scan: {}", subnet);
     net_scanner::telnet_scan(&subnet)
 }
+
+/// Run a preset post-connect service discovery sweep against a host list or subnet.
+///
+/// Invoked from frontend: `invoke('service_profile_scan', { target: '192.168.1.0/24', profile: 'quick_tcp' })`
+#[tauri::command]
+pub fn service_profile_scan(target: String, profile: String) -> Result<Vec<ServiceInfo>, AetherError> {
+    log::info!("[cmd] service_profile_scan: {} profile={}", target, profile);
+    net_scanner::service_profile_scan(&target, &profile)
+}

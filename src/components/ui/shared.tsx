@@ -246,10 +246,18 @@ export function SelectField({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="flex h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 font-mono text-sm transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="flex h-8 w-full appearance-none rounded-lg border border-input bg-slate-950 px-2.5 py-1 font-mono text-sm text-slate-100 transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        style={{ backgroundColor: "#020617", color: "#e2e8f0" }}
       >
         {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
+          <option
+            key={opt.value}
+            value={opt.value}
+            className="bg-slate-950 text-slate-100"
+            style={{ backgroundColor: "#020617", color: "#e2e8f0" }}
+          >
+            {opt.label}
+          </option>
         ))}
       </select>
     </div>

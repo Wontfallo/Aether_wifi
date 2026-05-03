@@ -24,11 +24,20 @@ interface Column {
 }
 
 type TabId = "hosts" | "ports" | "services";
+type ServiceProfileKey = "quick_tcp" | "web_admin" | "file_shares" | "camera_streams" | "udp_infra";
 
 const tabs: { id: TabId; label: string; icon?: React.ReactNode }[] = [
   { id: "hosts", label: "Host Discovery", icon: <Search className="w-3.5 h-3.5" /> },
   { id: "ports", label: "Port Scan", icon: <Server className="w-3.5 h-3.5" /> },
-  { id: "services", label: "Services", icon: <Radar className="w-3.5 h-3.5" /> },
+  { id: "services", label: "Post-Connect", icon: <Radar className="w-3.5 h-3.5" /> },
+];
+
+const serviceProfileOptions: { value: ServiceProfileKey; label: string }[] = [
+  { value: "quick_tcp", label: "Quick TCP sweep" },
+  { value: "web_admin", label: "Web admin panels" },
+  { value: "file_shares", label: "SMB / NFS shares" },
+  { value: "camera_streams", label: "IP cameras / RTSP" },
+  { value: "udp_infra", label: "UDP infra services" },
 ];
 
 /* ─── State colors ─── */
@@ -78,7 +87,9 @@ const portColumns: Column[] = [
 const serviceColumns: Column[] = [
   { key: "host", label: "Host" },
   { key: "port", label: "Port", align: "center" },
+  { key: "protocol", label: "Proto", align: "center", render: (s) => (s.protocol as string).toUpperCase() },
   { key: "service", label: "Service" },
+  { key: "role", label: "Likely Role" },
   { key: "version", label: "Version", render: (s) => (s.version as string) ?? "—" },
   { key: "mac", label: "MAC", render: (s) => (s.mac as string) ?? "—" },
   { key: "vendor", label: "Vendor", render: (s) => (s.vendor as string) ?? "—" },
@@ -99,6 +110,32 @@ function parseError(err: unknown): string {
   if (typeof err === "string") return err;
   if (err instanceof Error) return err.message;
   return JSON.stringify(err);
+}
+
+function classifyService(service: Pick<ServiceInfo, "port" | "service">): string {
+  const name = service.service.toLowerCase();
+
+  if ([80, 81, 443, 591, 8000, 8080, 8081, 8443, 8888].includes(service.port) || /(http|https|ssl|web|boa|lighttpd)/.test(name)) {
+    return "Web Admin";
+  }
+
+  if ([111, 139, 445, 2049].includes(service.port) || /(netbios|microsoft-ds|smb|cifs|nfs|rpcbind)/.test(name)) {
+    return "File Share";
+  }
+
+  if ([554, 8554].includes(service.port) || /(rtsp|onvif|rtmp)/.test(name)) {
+    return "Camera / Stream";
+  }
+
+  if ([53, 67, 68, 69, 123, 137, 161, 1900, 5353].includes(service.port) || /(dns|domain|dhcp|tftp|ntp|snmp|ssdp|mdns)/.test(name)) {
+    return "Infra";
+  }
+
+  if ([22, 23].includes(service.port) || /(ssh|telnet)/.test(name)) {
+    return "Remote Access";
+  }
+
+  return "General";
 }
 
 /* ─── Page ─── */
@@ -122,8 +159,9 @@ export function Recon() {
 
   // Services state
   const [svcSubnet, setSvcSubnet] = useState("192.168.1.0/24");
+  const [serviceProfile, setServiceProfile] = useState<ServiceProfileKey>("quick_tcp");
   const [services, setServices] = useState<ServiceInfo[]>([]);
-  const [svcLoading, setSvcLoading] = useState<"ssh" | "telnet" | null>(null);
+  const [svcLoading, setSvcLoading] = useState(false);
   const [svcError, setSvcError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -189,35 +227,35 @@ export function Recon() {
   }, [portTarget, portRange]);
 
   /* ─── Services handlers ─── */
-  const handleSshScan = useCallback(async () => {
+  const handleServiceProfileScan = useCallback(async () => {
     setSvcError(null);
-    setSvcLoading("ssh");
+    setSvcLoading(true);
     try {
-      const result = await invoke<ServiceInfo[]>("ssh_scan", { subnet: svcSubnet });
+      const result = await invoke<ServiceInfo[]>("service_profile_scan", {
+        target: svcSubnet,
+        profile: serviceProfile,
+      });
       setServices(result);
     } catch (err: unknown) {
       setSvcError(parseError(err));
     } finally {
-      setSvcLoading(null);
+      setSvcLoading(false);
     }
-  }, [svcSubnet]);
-
-  const handleTelnetScan = useCallback(async () => {
-    setSvcError(null);
-    setSvcLoading("telnet");
-    try {
-      const result = await invoke<ServiceInfo[]>("telnet_scan", { subnet: svcSubnet });
-      setServices(result);
-    } catch (err: unknown) {
-      setSvcError(parseError(err));
-    } finally {
-      setSvcLoading(null);
-    }
-  }, [svcSubnet]);
+  }, [serviceProfile, svcSubnet]);
 
   /* ─── Computed stats ─── */
   const upHosts = hosts.filter((h) => h.is_up).length;
   const downHosts = hosts.filter((h) => !h.is_up).length;
+  const discoveredTargetScope = hosts.filter((host) => host.is_up).map((host) => host.ip).join(" ");
+  const portRows = ports.map((port) => ({ ...port, row_id: `${port.host}-${port.port}-${port.protocol}` }));
+  const serviceRows = services.map((service) => ({
+    ...service,
+    role: classifyService(service),
+    row_id: `${service.host}-${service.port}-${service.protocol}`,
+  }));
+  const webAdminCount = serviceRows.filter((service) => service.role === "Web Admin").length;
+  const fileShareCount = serviceRows.filter((service) => service.role === "File Share").length;
+  const cameraCount = serviceRows.filter((service) => service.role === "Camera / Stream").length;
 
   return (
     <div className="h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -269,6 +307,12 @@ export function Recon() {
                 columns={hostColumns}
                 data={hosts as unknown as AnyRecord[]}
                 keyField="ip"
+                onRowClick={(row) => {
+                  const ip = String(row.ip);
+                  setPortTarget(ip);
+                  setSvcSubnet(ip);
+                  setActiveTab("ports");
+                }}
                 emptyMessage="No hosts discovered. Run a scan to begin."
               />
             </GlassCard>
@@ -282,7 +326,7 @@ export function Recon() {
 
             <GlassCard className="p-5">
               <div className="flex flex-wrap items-end gap-4">
-                <InputField label="Target IP" value={portTarget} onChange={setPortTarget} placeholder="192.168.1.1" mono className="flex-1 min-w-[200px]" />
+                <InputField label="Target Scope" value={portTarget} onChange={setPortTarget} placeholder="192.168.1.1 or 192.168.1.0/24" mono className="flex-1 min-w-[200px]" />
                 <InputField label="Port Range" value={portRange} onChange={setPortRange} placeholder="1-1000" mono className="flex-1 min-w-[140px]" />
                 <ActionButton variant="primary" size="md" onClick={handlePortScan} loading={portLoading} disabled={portLoading || !portTarget}>
                   Scan Ports
@@ -293,9 +337,9 @@ export function Recon() {
             <GlassCard accent="none" className="flex-1 min-h-0 overflow-auto">
               <DataTable
                 columns={portColumns}
-                data={ports as unknown as AnyRecord[]}
-                keyField="port"
-                emptyMessage="No port scan results. Enter a target and scan."
+                data={portRows as unknown as AnyRecord[]}
+                keyField="row_id"
+                emptyMessage="No port scan results. Enter a host, list, or subnet and scan."
               />
             </GlassCard>
           </>
@@ -307,25 +351,59 @@ export function Recon() {
             {svcError && <ErrorBanner message={svcError} onDismiss={() => setSvcError(null)} />}
 
             <GlassCard className="p-5">
+              <div className="mb-4">
+                <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+                  Safe post-connect recon for service discovery and device profiling.
+                </p>
+              </div>
               <div className="flex flex-wrap items-end gap-4">
-                <InputField label="Subnet" value={svcSubnet} onChange={setSvcSubnet} placeholder="192.168.1.0/24" mono className="flex-1 min-w-[200px]" />
-                <div className="flex gap-2">
-                  <ActionButton variant="primary" size="md" onClick={handleSshScan} loading={svcLoading === "ssh"} disabled={svcLoading !== null}>
-                    SSH Scan
+                <InputField
+                  label="Target Scope"
+                  value={svcSubnet}
+                  onChange={setSvcSubnet}
+                  placeholder="192.168.1.0/24 or 192.168.1.10 192.168.1.20"
+                  mono
+                  className="flex-[1.4] min-w-[260px]"
+                />
+                <SelectField
+                  label="Profile"
+                  value={serviceProfile}
+                  onChange={(value) => setServiceProfile(value as ServiceProfileKey)}
+                  options={serviceProfileOptions}
+                  className="flex-1 min-w-[200px]"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <ActionButton variant="ghost" size="md" onClick={() => setSvcSubnet(hostSubnet)} disabled={svcLoading}>
+                    Use Host Subnet
                   </ActionButton>
-                  <ActionButton variant="primary" size="md" onClick={handleTelnetScan} loading={svcLoading === "telnet"} disabled={svcLoading !== null}>
-                    Telnet Scan
+                  <ActionButton
+                    variant="ghost"
+                    size="md"
+                    onClick={() => setSvcSubnet(discoveredTargetScope)}
+                    disabled={svcLoading || !discoveredTargetScope}
+                  >
+                    Use Discovered Hosts
+                  </ActionButton>
+                  <ActionButton variant="primary" size="md" onClick={handleServiceProfileScan} loading={svcLoading} disabled={svcLoading || !svcSubnet}>
+                    Run Profile
                   </ActionButton>
                 </div>
               </div>
             </GlassCard>
 
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <StatCard label="Findings" value={serviceRows.length} accent="primary" />
+              <StatCard label="Web Admin" value={webAdminCount} accent="primary" />
+              <StatCard label="File Shares" value={fileShareCount} accent="green" />
+              <StatCard label="Cameras" value={cameraCount} accent="destructive" />
+            </div>
+
             <GlassCard accent="none" className="flex-1 min-h-0 overflow-auto">
               <DataTable
                 columns={serviceColumns}
-                data={services as unknown as AnyRecord[]}
-                keyField="port"
-                emptyMessage="No services found. Run a service scan."
+                data={serviceRows as unknown as AnyRecord[]}
+                keyField="row_id"
+                emptyMessage="No services found. Run a post-connect profile against a host list or subnet."
               />
             </GlassCard>
           </>

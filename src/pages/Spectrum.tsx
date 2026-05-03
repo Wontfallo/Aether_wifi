@@ -31,22 +31,26 @@ type ChannelSummary = {
   strongestRssi: number | null;
 };
 
-const FLOOR_DBM = -100;
-const PALETTE = ["#00E5FF", "#7CFF5B", "#FFB347", "#6F8CFF", "#FF6B9A", "#D77CFF", "#FFE066"];
-
-const BAND_CONFIG: Record<BandKey, {
+type BandConfig = {
   label: string;
   subtitle: string;
   frequencyRange: [number, number];
   channels: number[];
   envelopeWidthMhz: number;
-}> = {
+  axisTickIntervalMhz: number;
+};
+
+const FLOOR_DBM = -100;
+const PALETTE = ["#00E5FF", "#7CFF5B", "#FFB347", "#6F8CFF", "#FF6B9A", "#D77CFF", "#FFE066"];
+
+const BAND_CONFIG: Record<BandKey, BandConfig> = {
   "2.4": {
     label: "2.4 GHz",
     subtitle: "ISM band · overlap-sensitive",
     frequencyRange: [2400, 2490],
     channels: Array.from({ length: 14 }, (_, index) => index + 1),
     envelopeWidthMhz: 11,
+    axisTickIntervalMhz: 5,
   },
   "5": {
     label: "5 GHz",
@@ -54,6 +58,7 @@ const BAND_CONFIG: Record<BandKey, {
     frequencyRange: [5150, 5895],
     channels: [36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 144, 149, 153, 157, 161, 165],
     envelopeWidthMhz: 20,
+    axisTickIntervalMhz: 20,
   },
   "6": {
     label: "6 GHz",
@@ -61,6 +66,7 @@ const BAND_CONFIG: Record<BandKey, {
     frequencyRange: [5925, 7125],
     channels: Array.from({ length: 59 }, (_, index) => 1 + index * 4),
     envelopeWidthMhz: 20,
+    axisTickIntervalMhz: 20,
   },
 };
 
@@ -77,6 +83,15 @@ function toErrorMessage(error: unknown): string {
 function hashColor(seed: string): string {
   const total = seed.split("").reduce((sum, character) => sum + character.charCodeAt(0), 0);
   return PALETTE[total % PALETTE.length];
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const normalized = hex.replace("#", "");
+  const value = Number.parseInt(normalized, 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 function bandFromBeacon(beacon: BeaconFrame): BandKey | null {
@@ -119,6 +134,22 @@ function buildEnvelope(centerFreq: number, widthMhz: number, peakRssi: number): 
   }
 
   return points;
+}
+
+function findChannelForFrequency(frequency: number, bandConfig: BandConfig): number | null {
+  let bestChannel: number | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (const channel of bandConfig.channels) {
+    const channelFrequency = channelToFrequency(channel);
+    const distance = Math.abs(channelFrequency - frequency);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestChannel = channel;
+    }
+  }
+
+  return bestDistance <= 2 ? bestChannel : null;
 }
 
 function MetricTile({
@@ -259,13 +290,16 @@ export function Spectrum() {
     : "—";
 
   const spectrumChartOptions = useMemo(() => {
-    const topLabels = new Set(filteredNetworks.slice(0, 8).map((network) => network.bssid));
+    const topLabels = new Set(filteredNetworks.slice(0, 6).map((network) => network.bssid));
     const bandConfig = BAND_CONFIG[band];
     const networkByBssid = new Map(filteredNetworks.map((network) => [network.bssid, network] as const));
-    const recommendationAreas = recommendedChannels.slice(0, 2).map((summary) => ([
-      { xAxis: summary.frequency - bandConfig.envelopeWidthMhz * 0.7 },
-      { xAxis: summary.frequency + bandConfig.envelopeWidthMhz * 0.7 },
-    ]));
+    const strongestObservedRssi = filteredNetworks.reduce((max, network) => Math.max(max, network.rssi), FLOOR_DBM);
+    const spectrumCeiling = Math.max(-20, Math.min(5, Math.ceil((strongestObservedRssi + 8) / 5) * 5));
+    const axisLabelFormatter = (value: number) => {
+      const rounded = Math.round(value);
+      const channel = findChannelForFrequency(value, bandConfig);
+      return channel == null ? `${rounded}` : `${rounded}\nCH ${channel}`;
+    };
 
     const envelopeSeries = filteredNetworks.map((network) => {
       const color = hashColor(network.bssid);
@@ -279,14 +313,14 @@ export function Spectrum() {
         smooth: true,
         showSymbol: false,
         animation: false,
+        z: isSelected ? 4 : 2,
         lineStyle: {
-          width: isSelected ? 4 : 2.5,
-          color,
-          opacity: isSelected ? 1 : 0.95,
+          width: isSelected ? 3.2 : 2.1,
+          color: hexToRgba(color, isSelected ? 0.98 : 0.88),
+          opacity: 1,
         },
         areaStyle: {
-          color,
-          opacity: isSelected ? 0.24 : 0.12,
+          color: hexToRgba(color, isSelected ? 0.28 : 0.16),
         },
         emphasis: {
           focus: "series",
@@ -303,52 +337,32 @@ export function Spectrum() {
         bssid: network.bssid,
         itemStyle: {
           color: hashColor(network.bssid),
-          shadowBlur: selectedBssid === network.bssid ? 16 : 8,
+          shadowBlur: selectedBssid === network.bssid ? 14 : 7,
           shadowColor: hashColor(network.bssid),
         },
         label: {
           show: topLabels.has(network.bssid),
           formatter: network.ssid || `CH ${network.channel}`,
           position: "top",
-          color: "#e6f7ff",
+          color: hashColor(network.bssid),
           fontFamily: "monospace",
           fontSize: 11,
-          padding: [0, 0, 6, 0],
+          fontWeight: 700,
+          padding: [0, 0, 8, 0],
         },
-        symbolSize: selectedBssid === network.bssid ? 14 : 9,
+        symbolSize: selectedBssid === network.bssid ? 12 : 7,
       })),
       tooltip: {
         trigger: "item",
       },
+      labelLayout: {
+        hideOverlap: true,
+      },
       animation: false,
     };
 
-    const highlightSeries = {
-      name: "recommended-zones",
-      type: "line",
-      data: [
-        [bandConfig.frequencyRange[0], FLOOR_DBM],
-        [bandConfig.frequencyRange[1], FLOOR_DBM],
-      ],
-      lineStyle: {
-        opacity: 0,
-      },
-      symbol: "none",
-      silent: true,
-      markArea: {
-        silent: true,
-        itemStyle: {
-          color: "rgba(0, 229, 255, 0.06)",
-        },
-        label: {
-          show: false,
-        },
-        data: recommendationAreas,
-      },
-    };
-
     return {
-      backgroundColor: "transparent",
+      backgroundColor: "#050708",
       animation: false,
       tooltip: {
         trigger: "item",
@@ -384,27 +398,33 @@ export function Spectrum() {
         },
       },
       grid: {
-        top: 32,
+        top: 96,
         right: 24,
-        bottom: 56,
+        bottom: 78,
         left: 64,
       },
       xAxis: {
         type: "value",
         min: bandConfig.frequencyRange[0],
         max: bandConfig.frequencyRange[1],
-        name: "Center Frequency (MHz)",
+        interval: bandConfig.axisTickIntervalMhz,
+        name: "Frequency (MHz)",
         nameLocation: "middle",
-        nameGap: 34,
+        nameGap: 50,
         axisLine: {
           lineStyle: {
             color: "rgba(148, 163, 184, 0.3)",
           },
         },
+        axisTick: {
+          show: true,
+        },
         axisLabel: {
-          color: "rgba(226, 232, 240, 0.65)",
+          color: "rgba(226, 232, 240, 0.78)",
           fontFamily: "monospace",
-          formatter: (value: number) => Math.round(value).toString(),
+          lineHeight: 16,
+          margin: 12,
+          formatter: axisLabelFormatter,
         },
         splitLine: {
           lineStyle: {
@@ -416,7 +436,7 @@ export function Spectrum() {
       yAxis: {
         type: "value",
         min: FLOOR_DBM,
-        max: -20,
+        max: spectrumCeiling,
         name: "RSSI (dBm)",
         nameLocation: "middle",
         nameGap: 46,
@@ -436,7 +456,7 @@ export function Spectrum() {
           },
         },
       },
-      series: [highlightSeries, ...envelopeSeries, peakSeries],
+      series: [...envelopeSeries, peakSeries],
     };
   }, [band, filteredNetworks, recommendedChannels, selectedBssid]);
 
@@ -697,12 +717,12 @@ export function Spectrum() {
           />
         </div>
 
-        <GlassCard className="mt-6 p-4">
+        <GlassCard className="mt-6 border-border/50 bg-black/95">
           <div className="mb-3 flex items-center justify-between">
             <div>
               <p className="font-mono text-xs uppercase tracking-[0.3em] text-primary">Primary spectrum view</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Frequency-domain envelopes for each observed access point, with the recommended channels softly highlighted.
+                Frequency-domain envelopes for each observed access point on a black analyzer surface.
               </p>
             </div>
             <div className="flex items-center gap-3 font-mono text-xs uppercase tracking-[0.25em] text-muted-foreground">
@@ -724,7 +744,7 @@ export function Spectrum() {
           ) : (
             <ReactECharts
               option={spectrumChartOptions}
-              style={{ height: 520, width: "100%" }}
+              style={{ height: 540, width: "100%", backgroundColor: "#050708", borderRadius: 16 }}
               onEvents={chartEvents}
               notMerge
             />
