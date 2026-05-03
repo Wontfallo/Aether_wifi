@@ -139,7 +139,7 @@ const RT_FIELD_INFO: [(usize, usize); 14] = [
 // Internal parsed header
 // ─────────────────────────────────────────────────
 
-pub(crate) struct FrameHeader {
+struct FrameHeader {
     pub rt_len: usize,
     pub rssi: Option<i8>,
     pub frequency: Option<u16>,
@@ -151,7 +151,7 @@ pub(crate) struct FrameHeader {
 // Radiotap / Frame parsing helpers (public for tests)
 // ─────────────────────────────────────────────────
 
-pub fn parse_frame_header(data: &[u8]) -> Option<FrameHeader> {
+fn parse_frame_header(data: &[u8]) -> Option<FrameHeader> {
     if data.len() < 8 {
         return None;
     }
@@ -736,7 +736,7 @@ struct PmkidResult {
 ///
 /// In the Key Data, we look for a PMKID KDE:
 ///   Tag: 0xDD, Length, OUI (00:0F:AC), Data Type 4, then 16 bytes PMKID
-pub fn parse_eapol_for_pmkid(eapol: &[u8]) -> Option<PmkidResult> {
+fn parse_eapol_for_pmkid(eapol: &[u8]) -> Option<PmkidResult> {
     // Minimum EAPOL-Key header size
     if eapol.len() < 99 {
         return None;
@@ -910,7 +910,7 @@ struct PwnagotchiPayload {
     epoch: u64,
 }
 
-pub fn find_pwnagotchi_ie(tagged_params: &[u8]) -> Option<PwnagotchiPayload> {
+fn find_pwnagotchi_ie(tagged_params: &[u8]) -> Option<PwnagotchiPayload> {
     let mut offset = 0;
     while offset + 2 <= tagged_params.len() {
         let tag = tagged_params[offset];
@@ -1208,37 +1208,6 @@ mod tests {
         hdr.extend_from_slice(sa);     // Address 2
         hdr.extend_from_slice(bssid);  // Address 3
         hdr.extend_from_slice(&[0x00, 0x00]); // Sequence ctrl
-        hdr
-    }
-
-    fn build_data_header(
-        sa: &[u8; 6],
-        da: &[u8; 6],
-        bssid: &[u8; 6],
-        from_ds: bool,
-        to_ds: bool,
-        qos: bool,
-    ) -> Vec<u8> {
-        let mut hdr = Vec::new();
-        let subtype: u8 = if qos { 8 } else { 0 };
-        let fc0 = (subtype << 4) | (FRAME_TYPE_DATA << 2);
-        hdr.push(fc0);
-        let mut fc1: u8 = 0;
-        if to_ds {
-            fc1 |= 0x01;
-        }
-        if from_ds {
-            fc1 |= 0x02;
-        }
-        hdr.push(fc1);
-        hdr.extend_from_slice(&[0x00, 0x00]); // Duration
-        hdr.extend_from_slice(da);     // Address 1
-        hdr.extend_from_slice(sa);     // Address 2 (depending on to_ds/from_ds this is BSSID or SA)
-        hdr.extend_from_slice(bssid);  // Address 3
-        hdr.extend_from_slice(&[0x00, 0x00]); // Sequence ctrl
-        if qos {
-            hdr.extend_from_slice(&[0x00, 0x00]); // QoS ctrl
-        }
         hdr
     }
 

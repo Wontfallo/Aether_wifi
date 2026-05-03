@@ -97,7 +97,7 @@ if service_is_active wpa_supplicant; then
     WPASUPPLICANT_WAS_ACTIVE=1
 fi
 
-INITIAL_CHANNEL="$(iw dev "$IFACE" info 2>/dev/null | awk '/channel / { print $2; exit }')"
+INITIAL_CHANNEL="$(iw dev "$IFACE" info 2>/dev/null | awk '/channel / { print $2; exit }' || true)"
 
 # ── 2. Check WiFi adapter ──
 echo -e "${YELLOW}[1/4]${NC} Checking WiFi adapter (${IFACE})..."

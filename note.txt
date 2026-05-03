@@ -1,0 +1,206 @@
+> aether-app@0.1.0 tauri
+> node ./scripts/tauri-entry.mjs dev
+
+
+  ╔══════════════════════════════════════╗                                                                                       
+  ║        ◈ AETHER WiFi Auditor ◈       ║                                                                                       
+  ║          Launching System...          ║                                                                                      
+  ╚══════════════════════════════════════╝                                                                                       
+                                                                                                                                 
+[1/4] Checking WiFi adapter (wlan0)...
+  ✓ Found wlan0
+[2/4] Ensuring clean monitor mode...
+  Stopping interfering services...
+  ✓ Monitor mode activated on wlan0 (services killed)
+[3/4] Setting initial channel 6...
+  ✓ Channel 6
+[4/4] Launching Aether...
+
+  ══════════════════════════════════════
+    Aether is starting...               
+    Interface: wlan0 (Monitor Mode)     
+    Close the window to stop.            
+  ══════════════════════════════════════
+
+     Running BeforeDevCommand (`npm run dev`)
+
+> aether-app@0.1.0 dev
+> vite
+
+
+  VITE v7.3.1  ready in 164 ms
+
+  ➜  Local:   http://localhost:1420/
+     Running DevCommand (`cargo  run --no-default-features --color always --`)
+        Info Watching /home/kali/Aether_wifi/src-tauri for changes...
+warning: unused imports: `ApDetail` and `ApStore`
+ --> src/commands/utility_commands.rs:5:40
+  |
+5 | use crate::network::ap_manager::{self, ApDetail, ApStore, SavedAp};
+  |                                        ^^^^^^^^  ^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `error` and `warn`
+  --> src/network/attack_engine.rs:20:11
+   |
+20 | use log::{error, info, warn};
+   |           ^^^^^        ^^^^
+
+warning: unused import: `trace`
+  --> src/network/sniffer.rs:10:31
+   |
+10 | use log::{debug, error, info, trace, warn};
+   |                               ^^^^^
+
+warning: unused import: `PathBuf`
+  --> src/network/wardrive.rs:11:23
+   |
+11 | use std::path::{Path, PathBuf};
+   |                       ^^^^^^^
+
+warning: variable does not need to be mutable
+  --> src/network/audit.rs:86:9
+   |
+86 |     let mut cap = pcap::Capture::from_device(interface_name)
+   |         ----^^^
+   |         |
+   |         help: remove this `mut`
+   |
+   = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: type `advanced_sniffer::FrameHeader` is more private than the item `advanced_sniffer::parse_frame_header`
+   --> src/network/advanced_sniffer.rs:154:1
+    |
+154 | pub fn parse_frame_header(data: &[u8]) -> Option<FrameHeader> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ function `advanced_sniffer::parse_frame_header` is reachable at visibility `pub`                                                                                                              
+    |
+note: but type `advanced_sniffer::FrameHeader` is only usable at visibility `pub(crate)`
+   --> src/network/advanced_sniffer.rs:142:1
+    |
+142 | pub(crate) struct FrameHeader {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = note: `#[warn(private_interfaces)]` on by default
+
+warning: type `PmkidResult` is more private than the item `parse_eapol_for_pmkid`
+   --> src/network/advanced_sniffer.rs:739:1
+    |
+739 | pub fn parse_eapol_for_pmkid(eapol: &[u8]) -> Option<PmkidResult> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ function `parse_eapol_for_pmkid` is reachable at visibility `pub`                                                                                                                         
+    |
+note: but type `PmkidResult` is only usable at visibility `pub(self)`
+   --> src/network/advanced_sniffer.rs:713:1
+    |
+713 | struct PmkidResult {
+    | ^^^^^^^^^^^^^^^^^^
+
+warning: type `PwnagotchiPayload` is more private than the item `find_pwnagotchi_ie`
+   --> src/network/advanced_sniffer.rs:913:1
+    |
+913 | pub fn find_pwnagotchi_ie(tagged_params: &[u8]) -> Option<PwnagotchiPayload> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ function `find_pwnagotchi_ie` is reachable at visibility `pub`                                                                                                                 
+    |
+note: but type `PwnagotchiPayload` is only usable at visibility `pub(self)`
+   --> src/network/advanced_sniffer.rs:906:1
+    |
+906 | struct PwnagotchiPayload {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `RT_TSFT` is never used
+  --> src/network/packet_sniffer.rs:76:7
+   |
+76 | const RT_TSFT: u32 = 0;
+   |       ^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: constant `RT_FLAGS` is never used
+  --> src/network/packet_sniffer.rs:77:7
+   |
+77 | const RT_FLAGS: u32 = 1;
+   |       ^^^^^^^^
+
+warning: constant `RT_RATE` is never used
+  --> src/network/packet_sniffer.rs:78:7
+   |
+78 | const RT_RATE: u32 = 2;
+   |       ^^^^^^^
+
+warning: constant `RT_FHSS` is never used
+  --> src/network/packet_sniffer.rs:80:7
+   |
+80 | const RT_FHSS: u32 = 4;
+   |       ^^^^^^^
+
+warning: constant `RT_DBM_ANTNOISE` is never used
+  --> src/network/packet_sniffer.rs:82:7
+   |
+82 | const RT_DBM_ANTNOISE: u32 = 6;
+   |       ^^^^^^^^^^^^^^^
+
+warning: constant `RT_LOCK_QUALITY` is never used
+  --> src/network/packet_sniffer.rs:83:7
+   |
+83 | const RT_LOCK_QUALITY: u32 = 7;
+   |       ^^^^^^^^^^^^^^^
+
+warning: constant `RT_TX_ATTENUATION` is never used
+  --> src/network/packet_sniffer.rs:84:7
+   |
+84 | const RT_TX_ATTENUATION: u32 = 8;
+   |       ^^^^^^^^^^^^^^^^^
+
+warning: constant `RT_DB_TX_ATTENUATION` is never used
+  --> src/network/packet_sniffer.rs:85:7
+   |
+85 | const RT_DB_TX_ATTENUATION: u32 = 9;
+   |       ^^^^^^^^^^^^^^^^^^^^
+
+warning: constant `RT_DBM_TX_POWER` is never used
+  --> src/network/packet_sniffer.rs:86:7
+   |
+86 | const RT_DBM_TX_POWER: u32 = 10;
+   |       ^^^^^^^^^^^^^^^
+
+warning: constant `RT_ANTENNA` is never used
+  --> src/network/packet_sniffer.rs:87:7
+   |
+87 | const RT_ANTENNA: u32 = 11;
+   |       ^^^^^^^^^^
+
+warning: constant `RT_DB_ANTSIGNAL` is never used
+  --> src/network/packet_sniffer.rs:88:7
+   |
+88 | const RT_DB_ANTSIGNAL: u32 = 12;
+   |       ^^^^^^^^^^^^^^^
+
+warning: constant `RT_DB_ANTNOISE` is never used
+  --> src/network/packet_sniffer.rs:89:7
+   |
+89 | const RT_DB_ANTNOISE: u32 = 13;
+   |       ^^^^^^^^^^^^^^
+
+warning: constant `RT_TSFT` is never used
+  --> src/network/sniffer.rs:28:7
+   |
+28 | const RT_TSFT: u32 = 0;
+   |       ^^^^^^^
+
+warning: constant `RT_FLAGS` is never used
+  --> src/network/sniffer.rs:29:7
+   |
+29 | const RT_FLAGS: u32 = 1;
+   |       ^^^^^^^^
+
+warning: constant `RT_RATE` is never used
+  --> src/network/sniffer.rs:30:7
+   |
+30 | const RT_RATE: u32 = 2;
+   |       ^^^^^^^
+
+warning: constant `RT_FHSS` is never used
+  --> src/network/sniffer.rs:32:7
+   |
+32 | const RT_FHSS: u32 = 4;
+   |       ^^^^^^^
+
